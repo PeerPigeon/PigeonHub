@@ -31,7 +31,7 @@
     "dht",
     "decentralized"
   ],
-  "author": "",
+  "author": "Daniel Raeder",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
