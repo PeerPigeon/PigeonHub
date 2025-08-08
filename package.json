@@ -1,0 +1,39 @@
+{
+  "name": "pigeonhub",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A production-ready, distributed WebRTC signaling mesh with whack-a-mole resilience",
+  "main": "src/index.js",
+  "bin": {
+    "pp-sig": "./cli/pp-sig.mjs"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "example-publish": "node examples/node-publish.mjs",
+    "example-find": "node examples/node-find.mjs",
+    "deploy": "./deploy/deploy-all.sh",
+    "local:node1": "node local-node.mjs 3000 node-alpha",
+    "local:node2": "node local-node.mjs 3001 node-beta",
+    "local:node3": "node local-node.mjs 3002 node-gamma",
+    "local:node4": "node local-node.mjs 3003 node-delta",
+    "local:test": "node test-local.mjs"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "node-fetch": "^3.3.2",
+    "peerpigeon": "latest",
+    "ws": "^8.14.0"
+  },
+  "keywords": [
+    "peer-to-peer",
+    "signaling",
+    "webrtc",
+    "dht",
+    "decentralized"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

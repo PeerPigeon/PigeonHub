@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeerSignalDir Browser Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .endpoints {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .endpoint {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        
+        .endpoint:last-child {
+            border-bottom: none;
+        }
+        
+        .url {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        input, select {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PeerSignalDir Browser Example</h1>
+    
+    <div class="container">
+        <h2>Configuration</h2>
+        <div class="controls">
+            <label>
+                App ID: <input type="text" id="appId" value="example-app" />
+            </label>
+            <label>
+                Region: <input type="text" id="region" value="us-central" placeholder="(optional)" />
+            </label>
+            <label>
+                Server: <input type="text" id="server" value="ws://localhost:3000" />
+            </label>
+        </div>
+        <div class="controls">
+            <button onclick="connectAndFind()">Connect & Find Endpoints</button>
+            <button onclick="publishEndpoint()" id="publishBtn">Publish Test Endpoint</button>
+            <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+    </div>
+
+    <div id="status-container"></div>
+    <div id="endpoints-container"></div>
+    <div id="debug-container"></div>
+
+    <script type="module">
+        // Import PeerSignalDir modules
+        import { bootstrapPeerPigeon, SignalDirectory, exportRawPublicKey } from './src/index.js';
+        
+        let currentMesh = null;
+        let currentDht = null;
+        let currentDirectory = null;
+        
+        // Make functions available globally
+        window.connectAndFind = connectAndFind;
+        window.publishEndpoint = publishEndpoint;
+        window.disconnect = disconnect;
+        
+        function addStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            container.appendChild(statusDiv);
+            
+            // Keep only last 10 status messages
+            while (container.children.length > 10) {
+                container.removeChild(container.firstChild);
+            }
+            
+            // Scroll to bottom
+            statusDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function showEndpoints(records) {
+            const container = document.getElementById('endpoints-container');
+            
+            if (records.length === 0) {
+                container.innerHTML = `
+                    <div class="container">
+                        <h2>Signaling Endpoints</h2>
+                        <p>No endpoints found. Try publishing some endpoints first using the Node.js examples or the publish button above.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="container">
+                    <h2>Found ${records.length} Signaling Endpoint(s)</h2>
+                    <div class="endpoints">
+            `;
+            
+            records.forEach((record, index) => {
+                const id = Array.from(record.id, b => b.toString(16).padStart(2, '0')).join('');
+                const expiresAt = new Date(record.ts + record.ttl * 1000);
+                const isExpired = Date.now() > expiresAt.getTime();
+                
+                html += `
+                    <div class="endpoint">
+                        <h3>Endpoint ${index + 1} ${isExpired ? '(EXPIRED)' : ''}</h3>
+                        <p><strong>ID:</strong> ${id}</p>
+                        <p><strong>Sequence:</strong> ${record.seq.toString()}</p>
+                        <p><strong>Published:</strong> ${new Date(record.ts).toLocaleString()}</p>
+                        <p><strong>Expires:</strong> ${expiresAt.toLocaleString()}</p>
+                        <p><strong>URLs:</strong></p>
+                        <ul>
+                `;
+                
+                record.urls.forEach(url => {
+                    html += `<li><strong>${url.t.toUpperCase()}:</strong> <span class="url">${url.u}</span></li>`;
+                });
+                
+                html += `</ul>`;
+                
+                if (record.caps && record.caps.length > 0) {
+                    html += `<p><strong>Capabilities:</strong> ${record.caps.join(', ')}</p>`;
+                }
+                
+                html += `</div>`;
+            });
+            
+            html += `</div></div>`;
+            container.innerHTML = html;
+        }
+        
+        function showDebugInfo(data) {
+            const container = document.getElementById('debug-container');
+            container.innerHTML = `
+                <div class="container">
+                    <h2>Debug Information</h2>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+        }
+        
+        async function connectAndFind() {
+            try {
+                const appId = document.getElementById('appId').value.trim();
+                const region = document.getElementById('region').value.trim() || undefined;
+                const server = document.getElementById('server').value.trim();
+                
+                if (!appId) {
+                    addStatus('App ID is required', 'error');
+                    return;
+                }
+                
+                addStatus('Connecting to PeerPigeon mesh...', 'info');
+                
+                // Bootstrap PeerPigeon
+                const { mesh, dht } = await bootstrapPeerPigeon({
+                    appId: appId,
+                    hardcodedSeeds: [{ t: 'ws', u: server }]
+                });
+                
+                currentMesh = mesh;
+                currentDht = dht;
+                currentDirectory = new SignalDirectory(dht);
+                
+                addStatus('Connected to mesh, searching for endpoints...', 'success');
+                
+                // Update UI
+                document.getElementById('publishBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = false;
+                
+                // Find endpoints
+                const records = await currentDirectory.find(appId, region);
+                
+                addStatus(`Found ${records.length} signaling endpoint(s)`, 'success');
+                showEndpoints(records);
+                
+                // Show debug info
+                showDebugInfo({
+                    appId,
+                    region: region || '(any)',
+                    server,
+                    recordsFound: records.length,
+                    meshStats: currentDht.getStats()
+                });
+                
+            } catch (error) {
+                addStatus(`Connection failed: ${error.message}`, 'error');
+                console.error('Connection error:', error);
+            }
+        }
+        
+        async function publishEndpoint() {
+            if (!currentDirectory) {
+                addStatus('Must connect first', 'error');
+                return;
+            }
+            
+            try {
+                const appId = document.getElementById('appId').value.trim();
+                const region = document.getElementById('region').value.trim() || undefined;
+                
+                addStatus('Generating keypair and publishing endpoint...', 'info');
+                
+                // Generate Ed25519 keypair
+                const keypair = await crypto.subtle.generateKey(
+                    { name: 'Ed25519' },
+                    true,
+                    ['sign', 'verify']
+                );
+                
+                const publicKeyRaw = await exportRawPublicKey(keypair.publicKey);
+                
+                // Publish test endpoint
+                const record = await currentDirectory.publish({
+                    appId: appId,
+                    region: region,
+                    publicKey: publicKeyRaw,
+                    privateKey: keypair.privateKey,
+                    urls: [
+                        { t: 'ws', u: 'wss://test-browser-signal.example.com/ws' },
+                        { t: 'http', u: 'https://test-browser-signal.example.com/sdp' }
+                    ],
+                    caps: ['browser-test'],
+                    ttlSec: 300 // 5 minutes
+                });
+                
+                const id = Array.from(record.id, b => b.toString(16).padStart(2, '0')).join('');
+                addStatus(`Published test endpoint with ID: ${id}`, 'success');
+                
+                // Refresh the endpoints display after a short delay
+                setTimeout(async () => {
+                    const records = await currentDirectory.find(appId, region);
+                    showEndpoints(records);
+                    addStatus(`Refreshed: now showing ${records.length} endpoint(s)`, 'info');
+                }, 2000);
+                
+            } catch (error) {
+                addStatus(`Publish failed: ${error.message}`, 'error');
+                console.error('Publish error:', error);
+            }
+        }
+        
+        function disconnect() {
+            if (currentMesh) {
+                try {
+                    // Note: PeerPigeon may not have a direct disconnect method
+                    // This is more for UI state management
+                    currentMesh = null;
+                    currentDht = null;
+                    currentDirectory = null;
+                    
+                    document.getElementById('publishBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    
+                    addStatus('Disconnected from mesh', 'info');
+                    
+                    // Clear displays
+                    document.getElementById('endpoints-container').innerHTML = '';
+                    document.getElementById('debug-container').innerHTML = '';
+                    
+                } catch (error) {
+                    addStatus(`Disconnect error: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        // Initialize page
+        addStatus('Browser example loaded. Click "Connect & Find Endpoints" to start.', 'info');
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (currentMesh) {
+                disconnect();
+            }
+        });
+        
+    </script>
+</body>
+</html>
