@@ -1,6 +1,6 @@
 {
   "name": "pigeonhub",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "type": "module",
   "description": "A production-ready, distributed WebRTC signaling mesh with whack-a-mole resilience",
   "main": "src/index.js",
