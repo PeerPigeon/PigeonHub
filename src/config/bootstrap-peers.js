@@ -10,40 +10,40 @@
  * and should be highly available across different cloud providers
  */
 export const PRODUCTION_BOOTSTRAP_PEERS = [
-  // Vercel deployment (Global Edge Network)
+  // Heroku deployment (US East) - Currently deployed
   { 
     t: 'wss', 
-    u: 'wss://pigeonhub.vercel.app',
-    region: 'global',
-    priority: 1,
-    description: 'Vercel Global Edge - Primary bootstrap'
-  },
-  
-  // Heroku deployment (US East)  
-  { 
-    t: 'wss', 
-    u: 'wss://pigeonhub.herokuapp.com',
+    u: 'wss://peersignal-us-east-1754691772-584069971541.herokuapp.com',
     region: 'us-east',
-    priority: 2,
-    description: 'Heroku US East - Secondary bootstrap'
+    priority: 1,
+    description: 'Heroku US East - Primary bootstrap'
   },
   
-  // Railway deployment (US West)
+  // Railway deployment (US West) - Currently deployed
   { 
     t: 'wss', 
-    u: 'wss://pigeonhub.railway.app',
+    u: 'wss://pigeonhub-production.up.railway.app',
     region: 'us-west', 
     priority: 2,
-    description: 'Railway US West - Regional bootstrap'
+    description: 'Railway US West - Secondary bootstrap'
   },
   
-  // Fly.io deployment (Global anycast)
+  // Fly.io deployment (pending)
   { 
     t: 'wss', 
-    u: 'wss://pigeonhub.fly.dev',
+    u: 'wss://pigeonhub-fly.fly.dev',
     region: 'global',
     priority: 2,
     description: 'Fly.io Global - Regional bootstrap'
+  },
+  
+  // Vercel deployment (pending)
+  { 
+    t: 'wss', 
+    u: 'wss://pigeonhub-vercel.vercel.app',
+    region: 'global',
+    priority: 2,
+    description: 'Vercel Global Edge - Regional bootstrap'
   }
 ];
 

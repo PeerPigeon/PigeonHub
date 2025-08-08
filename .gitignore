@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# PigeonHub specific
+deploy/.wrangler/
+deploy/railway.json
+deploy/*.bak
+README-clean.md

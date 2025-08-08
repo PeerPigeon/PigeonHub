@@ -15,7 +15,7 @@ const CONFIG = {
 
 // Bootstrap peer configuration for production  
 const BOOTSTRAP_PEERS = [
-  { t: 'wss', u: 'wss://pigeonhub.herokuapp.com' },
+  { t: 'wss', u: 'wss://peersignal-us-east-1754691626-6cb649cf5697.herokuapp.com' },
   { t: 'wss', u: 'wss://pigeonhub.railway.app' },  
   { t: 'wss', u: 'wss://pigeonhub.fly.dev' }
 ];

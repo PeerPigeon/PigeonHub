@@ -4,6 +4,14 @@
   "type": "module",
   "description": "A production-ready, distributed WebRTC signaling mesh with whack-a-mole resilience",
   "main": "src/index.js",
+  "files": [
+    "src/",
+    "cli/",
+    "examples/",
+    "server.js",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "pp-sig": "./cli/pp-sig.mjs"
   },
@@ -33,6 +41,14 @@
   ],
   "author": "Daniel Raeder",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/draeder/pigeonhub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/draeder/pigeonhub/issues"
+  },
+  "homepage": "https://github.com/draeder/pigeonhub#readme",
   "engines": {
     "node": ">=18.0.0"
   }

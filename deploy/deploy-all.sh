@@ -9,7 +9,7 @@ echo "🚀 PigeonHub Multi-Platform Deployment"
 echo "====================================="
 
 # Configuration
-APP_ID=${APP_ID:-"your-app-id"}
+APP_ID=${APP_ID:-"GLOBAL-PEERPIGEON-HUB"}
 REGION=${REGION:-"us-east"}
 MAX_PEERS=${MAX_PEERS:-100}
 
@@ -41,11 +41,37 @@ warn_tool() {
 
 echo ""
 echo "🔧 Checking optional deployment tools..."
-CLOUDFLARE_AVAILABLE=$(warn_tool "wrangler" "Cloudflare Workers" && echo "1" || echo "0")
-HEROKU_AVAILABLE=$(warn_tool "heroku" "Heroku" && echo "1" || echo "0")
-RAILWAY_AVAILABLE=$(warn_tool "railway" "Railway" && echo "1" || echo "0")
-FLY_AVAILABLE=$(warn_tool "flyctl" "Fly.io" && echo "1" || echo "0")
-VERCEL_AVAILABLE=$(warn_tool "vercel" "Vercel" && echo "1" || echo "0")
+
+# Check tools and set availability flags
+if warn_tool "wrangler" "Cloudflare Workers"; then
+    CLOUDFLARE_AVAILABLE=1
+else
+    CLOUDFLARE_AVAILABLE=0
+fi
+
+if warn_tool "heroku" "Heroku"; then
+    HEROKU_AVAILABLE=1
+else
+    HEROKU_AVAILABLE=0
+fi
+
+if warn_tool "railway" "Railway"; then
+    RAILWAY_AVAILABLE=1
+else
+    RAILWAY_AVAILABLE=0
+fi
+
+if warn_tool "flyctl" "Fly.io"; then
+    FLY_AVAILABLE=1
+else
+    FLY_AVAILABLE=0
+fi
+
+if warn_tool "vercel" "Vercel"; then
+    VERCEL_AVAILABLE=1
+else
+    VERCEL_AVAILABLE=0
+fi
 
 echo ""
 echo "🔑 Setting up environment variables..."
@@ -53,15 +79,35 @@ echo "🔑 Setting up environment variables..."
 # Generate Ed25519 keypair if not provided
 if [ -z "$SEED_PRIVATE_KEY" ] || [ -z "$SEED_PUBLIC_KEY" ]; then
     echo "📝 Generating new Ed25519 keypair for seed signing..."
-    node -e "
-        import { generateSigningKeyPair, bytesToBase64 } from '../src/util/crypto.js';
-        const { privateKey, publicKey } = await generateSigningKeyPair();
-        const privateBytes = await window.crypto.subtle.exportKey('pkcs8', privateKey);
-        const publicBytes = await window.crypto.subtle.exportKey('spki', publicKey);
-        console.log('SEED_PRIVATE_KEY=' + bytesToBase64(new Uint8Array(privateBytes)));
-        console.log('SEED_PUBLIC_KEY=' + bytesToBase64(new Uint8Array(publicBytes)));
-    "
-    echo "⚠️  Please save these keys securely and set them as environment variables"
+    
+    # Run the key generation script
+    KEY_OUTPUT=$(node deploy/generate-keys.mjs)
+    
+    if [ $? -eq 0 ]; then
+        echo "$KEY_OUTPUT"
+        echo ""
+        echo "⚠️  Please save these keys securely and set them as environment variables"
+        echo "   For this deployment session, you can run:"
+        echo "   export SEED_PRIVATE_KEY='<private_key_value>'"
+        echo "   export SEED_PUBLIC_KEY='<public_key_value>'"
+        echo ""
+        echo "💡 Or save them to a .env file (don't commit to git!):"
+        echo "   echo 'SEED_PRIVATE_KEY=<private_key_value>' >> .env"
+        echo "   echo 'SEED_PUBLIC_KEY=<public_key_value>' >> .env"
+        echo ""
+        
+        # Extract keys from output for this session
+        SEED_PRIVATE_KEY=$(echo "$KEY_OUTPUT" | grep "SEED_PRIVATE_KEY=" | cut -d'=' -f2)
+        SEED_PUBLIC_KEY=$(echo "$KEY_OUTPUT" | grep "SEED_PUBLIC_KEY=" | cut -d'=' -f2)
+        
+        export SEED_PRIVATE_KEY
+        export SEED_PUBLIC_KEY
+        
+        echo "🔑 Keys have been set for this deployment session"
+    else
+        echo "❌ Failed to generate keys. Please set SEED_PRIVATE_KEY and SEED_PUBLIC_KEY manually."
+        exit 1
+    fi
 fi
 
 # Deploy to Cloudflare Workers
@@ -87,36 +133,45 @@ deploy_heroku() {
     echo ""
     echo "🟣 Deploying to Heroku..."
     
+    # Store original directory
+    ORIGINAL_DIR=$(pwd)
+    
     # Create temporary deployment directory
     TEMP_DIR=$(mktemp -d)
     cd $TEMP_DIR
     
-    # Copy files
-    cp ../deploy/heroku-server.js ./server.js
-    cp ../deploy/heroku-package.json ./package.json
-    cp ../deploy/Procfile ./Procfile
+    # Copy files (use absolute paths)
+    cp "$ORIGINAL_DIR/deploy/heroku-server.js" ./server.js
+    cp "$ORIGINAL_DIR/deploy/heroku-package.json" ./package.json
+    cp "$ORIGINAL_DIR/deploy/Procfile" ./Procfile
     
-    # Initialize git repo
-    git init
-    git add .
-    git commit -m "Initial deployment"
+    # Initialize git repo with automation
+    git init -q
+    git checkout -b main -q
+    git config user.email "deploy@pigeonhub.io"
+    git config user.name "PigeonHub Deploy"
+    git add . -A
+    git commit -m "Automated deployment" -q
     
-    # Create Heroku app
+    # Create Heroku app with automation
     APP_NAME="peersignal-$REGION-$(date +%s)"
-    heroku create $APP_NAME --region us
+    heroku create $APP_NAME --region us --json > /dev/null
     
-    # Set environment variables
-    heroku config:set APP_ID=$APP_ID --app $APP_NAME
-    heroku config:set REGION=$REGION --app $APP_NAME
-    heroku config:set MAX_PEERS=$MAX_PEERS --app $APP_NAME
-    heroku config:set SEED_PUBLIC_KEY="$SEED_PUBLIC_KEY" --app $APP_NAME
-    heroku config:set SEED_SIGNATURE="$SEED_SIGNATURE" --app $APP_NAME
+    # Set environment variables (batch mode)
+    heroku config:set \
+        APP_ID="$APP_ID" \
+        REGION="$REGION" \
+        MAX_PEERS="$MAX_PEERS" \
+        SEED_PUBLIC_KEY="$SEED_PUBLIC_KEY" \
+        SEED_SIGNATURE="$SEED_SIGNATURE" \
+        --app $APP_NAME > /dev/null
     
-    # Deploy
-    git push heroku main
+    # Deploy with quiet mode
+    echo "🚀 Pushing to Heroku..."
+    git push heroku main -q
     
     echo "✅ Heroku deployment complete: https://$APP_NAME.herokuapp.com"
-    cd ..
+    cd "$ORIGINAL_DIR"
     rm -rf $TEMP_DIR
 }
 
@@ -125,7 +180,43 @@ deploy_railway() {
     echo ""
     echo "🚂 Deploying to Railway..."
     
+    # Check if already logged in
+    if ! railway whoami &> /dev/null; then
+        echo "🔑 Not logged into Railway. Attempting browserless login..."
+        echo "   Please follow the instructions to authenticate"
+        railway login --browserless
+        
+        # Wait a moment for authentication to settle
+        sleep 2
+        
+        # Verify login was successful
+        if ! railway whoami &> /dev/null; then
+            echo "❌ Railway login failed. Skipping Railway deployment."
+            return 1
+        fi
+        echo "✅ Railway authentication successful"
+    else
+        echo "✅ Already logged into Railway"
+    fi
+    
     cd deploy
+    
+    # Create unique project name
+    PROJECT_NAME="pigeonhub-$REGION-$(date +%s)"
+    
+    # Initialize project if not already linked
+    if ! railway status &> /dev/null; then
+        echo "🚂 Creating new Railway project: $PROJECT_NAME"
+        railway init --name "$PROJECT_NAME"
+    else
+        echo "✅ Railway project already linked"
+    fi
+    
+    # Ensure service is linked
+    if ! railway status | grep -q "Service:"; then
+        echo "🔗 Linking Railway service..."
+        echo "pigeonhub" | railway service
+    fi
     
     # Create railway.json if it doesn't exist
     cat > railway.json << EOF
@@ -134,15 +225,22 @@ deploy_railway() {
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "node heroku-server.js",
+    "startCommand": "node server.js",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30
+  },
+  "variables": {
+    "APP_ID": "$APP_ID",
+    "REGION": "$REGION",
+    "MAX_PEERS": "$MAX_PEERS",
+    "SEED_PUBLIC_KEY": "$SEED_PUBLIC_KEY",
+    "SEED_SIGNATURE": "$SEED_SIGNATURE"
   }
 }
 EOF
     
-    # Deploy
-    railway up
+    # Deploy with CI mode and explicit service for full automation
+    railway up --ci --service pigeonhub
     
     echo "✅ Railway deployment complete"
     cd ..
@@ -155,9 +253,12 @@ deploy_fly() {
     
     cd deploy
     
-    # Create fly.toml if it doesn't exist
+    # Create unique app name
+    APP_NAME="peersignal-$REGION-$(date +%s)"
+    
+    # Create fly.toml configuration
     cat > fly.toml << EOF
-app = "peersignal-$REGION-$(date +%s)"
+app = "$APP_NAME"
 primary_region = "iad"
 
 [build]
@@ -168,6 +269,8 @@ primary_region = "iad"
   APP_ID = "$APP_ID"
   REGION = "$REGION"
   MAX_PEERS = "$MAX_PEERS"
+  SEED_PUBLIC_KEY = "$SEED_PUBLIC_KEY"
+  SEED_SIGNATURE = "$SEED_SIGNATURE"
 
 [http_service]
   internal_port = 8080
@@ -193,11 +296,14 @@ primary_region = "iad"
   memory_mb = 512
 EOF
     
-    # Deploy
-    fly launch --no-deploy
-    fly deploy
+    # Deploy with automation flags
+    echo "🚀 Launching Fly.io app..."
+    fly launch --now --no-deploy --ha=false --copy-config
     
-    echo "✅ Fly.io deployment complete"
+    echo "🚀 Deploying to Fly.io..."
+    fly deploy --wait-timeout=300
+    
+    echo "✅ Fly.io deployment complete: https://$APP_NAME.fly.dev"
     cd ..
 }
 
@@ -208,13 +314,28 @@ deploy_vercel() {
     
     cd deploy
     
-    # Create vercel.json for static hosting + edge functions
+    # Create vercel.json for serverless functions
     cat > vercel.json << EOF
 {
-  "functions": {
-    "api/seeds.js": {
-      "runtime": "edge"
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ],
+  "env": {
+    "APP_ID": "$APP_ID",
+    "REGION": "$REGION",
+    "MAX_PEERS": "$MAX_PEERS",
+    "SEED_PUBLIC_KEY": "$SEED_PUBLIC_KEY",
+    "SEED_SIGNATURE": "$SEED_SIGNATURE"
   },
   "headers": [
     {
@@ -228,8 +349,9 @@ deploy_vercel() {
 }
 EOF
     
-    # Deploy
-    vercel deploy --prod
+    # Deploy with full automation
+    echo "🚀 Deploying to Vercel..."
+    vercel deploy --prod --yes --no-wait
     
     echo "✅ Vercel deployment complete"
     cd ..
@@ -242,8 +364,9 @@ echo "🎯 Starting deployments..."
 DEPLOYED_COUNT=0
 
 if [ "$CLOUDFLARE_AVAILABLE" = "1" ]; then
-    deploy_cloudflare
-    DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
+    echo "⚠️  Cloudflare Workers deployment temporarily disabled (needs compatibility fixes)"
+    # deploy_cloudflare
+    # DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
 fi
 
 if [ "$HEROKU_AVAILABLE" = "1" ]; then

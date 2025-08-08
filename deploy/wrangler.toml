@@ -1,6 +1,7 @@
 name = "pigeonhub-node"
 main = "cloudflare-worker.js"
 compatibility_date = "2023-08-07"
+compatibility_flags = ["nodejs_compat"]
 
 # Environment variables (set with: wrangler secret put VARIABLE_NAME)
 # SEED_PRIVATE_KEY - Your Ed25519 private key for signing seed bundles
