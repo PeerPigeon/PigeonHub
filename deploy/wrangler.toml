@@ -15,7 +15,3 @@ name = "pigeonhub-staging"
 
 # Optional: Custom domain
 # route = "signal.yourdomain.com/*"
-
-# Resource limits
-[limits]
-cpu_ms = 50

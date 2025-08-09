@@ -117,14 +117,20 @@ deploy_cloudflare() {
     
     cd deploy
     
+    # Create a copy of the worker and update configuration
+    cp cloudflare-worker.js cloudflare-worker-configured.js
+    
     # Update worker with current config
-    sed -i.bak "s/your-app-id/$APP_ID/g" cloudflare-worker.js
-    sed -i.bak "s/us-east/$REGION/g" cloudflare-worker.js
+    sed -i.bak "s/your-app-id/$APP_ID/g" cloudflare-worker-configured.js
+    sed -i.bak "s/us-east/$REGION/g" cloudflare-worker-configured.js
+    sed -i.bak "s/BASE64_ED25519_PUBLIC_KEY/$SEED_PUBLIC_KEY/g" cloudflare-worker-configured.js
+    sed -i.bak "s/BASE64_SIGNATURE/$SEED_SIGNATURE/g" cloudflare-worker-configured.js
     
-    # Deploy
-    wrangler deploy --name "peersignal-$REGION-$(date +%s)"
+    # Deploy with unique name
+    WORKER_NAME="pigeonhub-$REGION-$(date +%s)"
+    wrangler deploy cloudflare-worker-configured.js --name "$WORKER_NAME"
     
-    echo "✅ Cloudflare Workers deployment complete"
+    echo "✅ Cloudflare Workers deployment complete: https://$WORKER_NAME.workers.dev"
     cd ..
 }
 
@@ -251,6 +257,17 @@ deploy_fly() {
     echo ""
     echo "🪰 Deploying to Fly.io..."
     
+    # Check if already authenticated
+    if ! flyctl auth whoami &> /dev/null; then
+        echo "🔑 Not authenticated with Fly.io. Please login first:"
+        echo "   Run: flyctl auth login"
+        echo "   Or set FLY_ACCESS_TOKEN environment variable"
+        echo "❌ Skipping Fly.io deployment. Please authenticate and re-run."
+        return 1
+    else
+        echo "✅ Fly.io authentication confirmed"
+    fi
+    
     cd deploy
     
     # Create unique app name
@@ -364,9 +381,8 @@ echo "🎯 Starting deployments..."
 DEPLOYED_COUNT=0
 
 if [ "$CLOUDFLARE_AVAILABLE" = "1" ]; then
-    echo "⚠️  Cloudflare Workers deployment temporarily disabled (needs compatibility fixes)"
-    # deploy_cloudflare
-    # DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
+    deploy_cloudflare
+    DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
 fi
 
 if [ "$HEROKU_AVAILABLE" = "1" ]; then

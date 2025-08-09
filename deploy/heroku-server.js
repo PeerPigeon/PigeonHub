@@ -26,9 +26,9 @@ const BOOTSTRAP_PEERS = process.env.BOOTSTRAP_PEERS ?
 
 // Production bootstrap peers (other PigeonHub instances)  
 const DEFAULT_BOOTSTRAP_PEERS = [
-  { t: 'wss', u: 'wss://pigeonhub.vercel.app' },
-  { t: 'wss', u: 'wss://pigeonhub.railway.app' },
-  { t: 'wss', u: 'wss://pigeonhub.fly.dev' }
+  { t: 'wss', u: 'wss://pigeonhub-production.up.railway.app' }, // Live Railway
+  { t: 'wss', u: 'wss://pigeonhub.vercel.app' }, // Community/fallback
+  { t: 'wss', u: 'wss://pigeonhub.fly.dev' } // Community/fallback
 ];
 
 const nodeId = process.env.DYNO || process.env.NODE_ID || `heroku-${Math.random().toString(36).substring(7)}`;

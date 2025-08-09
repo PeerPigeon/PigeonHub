@@ -3,12 +3,12 @@
 
 // Configuration - will be replaced by deploy script
 const CONFIG = {
-  appId: 'your-app-id',
+  appId: 'GLOBAL-PEERPIGEON-HUB',
   maxPeers: 50,
   region: 'us-east',
   seedTTL: 86400, // 24 hours
-  publicKey: 'BASE64_ED25519_PUBLIC_KEY',
-  signature: 'BASE64_SIGNATURE'
+  publicKey: 'MCowBQYDK2VwAyEAdn9neC3tVRDmYgvHGOtP164K01xwrHEitu3HAWg403k=',
+  signature: ''
 };
 
 // Bootstrap peer configuration for production  

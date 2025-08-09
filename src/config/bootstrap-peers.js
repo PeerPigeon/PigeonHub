@@ -13,7 +13,7 @@ export const PRODUCTION_BOOTSTRAP_PEERS = [
   // Heroku deployment (US East) - Currently deployed
   { 
     t: 'wss', 
-    u: 'wss://peersignal-us-east-1754691772-584069971541.herokuapp.com',
+    u: 'wss://peersignal-us-east-1754698863-0d9d46c30c5d.herokuapp.com',
     region: 'us-east',
     priority: 1,
     description: 'Heroku US East - Primary bootstrap'
@@ -28,7 +28,16 @@ export const PRODUCTION_BOOTSTRAP_PEERS = [
     description: 'Railway US West - Secondary bootstrap'
   },
   
-  // Fly.io deployment (pending)
+  // Cloudflare Workers deployment - Currently deployed
+  { 
+    t: 'https', 
+    u: 'https://pigeonhub-us-east-1754698858.draeder.workers.dev',
+    region: 'global',
+    priority: 2,
+    description: 'Cloudflare Workers Global - HTTP signaling'
+  },
+  
+  // Fly.io deployment - Will be updated after deployment
   { 
     t: 'wss', 
     u: 'wss://pigeonhub-fly.fly.dev',
@@ -37,13 +46,38 @@ export const PRODUCTION_BOOTSTRAP_PEERS = [
     description: 'Fly.io Global - Regional bootstrap'
   },
   
-  // Vercel deployment (pending)
+  // Vercel deployment - Will be updated after deployment
   { 
     t: 'wss', 
     u: 'wss://pigeonhub-vercel.vercel.app',
     region: 'global',
     priority: 2,
     description: 'Vercel Global Edge - Regional bootstrap'
+  },
+  
+  // Keep existing community/fallback peers
+  { 
+    t: 'wss', 
+    u: 'wss://pigeonhub.vercel.app',
+    region: 'global',
+    priority: 3,
+    description: 'Community fallback peer'
+  },
+  
+  { 
+    t: 'wss', 
+    u: 'wss://pigeonhub.railway.app',
+    region: 'global',
+    priority: 3,
+    description: 'Community fallback peer'
+  },
+  
+  { 
+    t: 'wss', 
+    u: 'wss://pigeonhub.fly.dev',
+    region: 'global',
+    priority: 3,
+    description: 'Community fallback peer'
   }
 ];
 
