@@ -818,7 +818,7 @@ app.get('/api/find/:topic', async (req, res) => {
   }
 });
 
-// Bootstrap DHT with comprehensive peer discovery
+// Bootstrap DHT with simple single-server architecture
 async function bootstrap() {
   if (isBootstrapping) return;
   isBootstrapping = true;
@@ -826,41 +826,25 @@ async function bootstrap() {
   try {
     console.log('🔗 Loading PeerPigeon modules...');
     const { SignalDirectory, bootstrapPeerPigeon } = await import('./src/index.js');
-    const { getBootstrapPeers, parseBootstrapPeersFromEnv } = await import('./src/config/bootstrap-peers.js');
     
-    console.log('🌱 Starting DHT bootstrap with comprehensive peer discovery...');
+    console.log('🌱 Starting PeerPigeon mesh with simple architecture...');
     
-    // Get bootstrap peers based on environment
-    const environment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
-    const customPeers = parseBootstrapPeersFromEnv(process.env.BOOTSTRAP_PEERS);
+    // Simple architecture: This Fly.io server acts as the shared signaling server
+    // Other nodes (like Heroku) will connect to this server as PeerPigeon clients
+    console.log(`📡 This server will act as shared signaling server (Fly.io)`);
+    console.log(`🆔 This node ID: ${nodeId}`);
     
-    const allBootstrapPeers = getBootstrapPeers({
-      environment,
-      region: process.env.REGION,
-      customPeers,
-      includeLocal: true // Always include local for development
-    });
-    
-    console.log(`📡 Bootstrap peers discovered:`);
-    allBootstrapPeers.slice(0, 10).forEach((peer, i) => {
-      const desc = peer.description || `${peer.region} peer`;
-      console.log(`   ${i + 1}. ${peer.u} (${peer.t}) - ${desc}`);
-    });
-    
-    if (allBootstrapPeers.length > 10) {
-      console.log(`   ... and ${allBootstrapPeers.length - 10} more peers`);
-    }
-    
+    // Fly.io server bootstraps with empty peers - it IS the signaling server
     const result = await bootstrapPeerPigeon({
       appId: process.env.APP_ID || 'pigeonhub-mesh',
-      hardcodedSeeds: allBootstrapPeers,
-      maxRetries: 3,
-      retryDelay: 1000,
+      hardcodedSeeds: [], // Empty - this server is the bootstrap
+      maxRetries: 5,
+      retryDelay: 2000,
       meshOpts: {
         enableWebDHT: true,
-        timeout: 10000,
+        timeout: 15000,
         maxPeers: 50,
-        nodeId: nodeId  // Add unique node identifier
+        nodeId: nodeId
       }
     });
     
