@@ -2,12 +2,25 @@
 
 import WebSocket from 'ws';
 import crypto from 'crypto';
+import fetch from 'node-fetch';
 
 console.log('🧪 Testing Cross-Node Signal Delivery (Validation Focus)');
 console.log('========================================================');
 
-const peer1Id = crypto.randomBytes(16).toString('hex').substring(0, 8);
-const peer2Id = crypto.randomBytes(16).toString('hex').substring(0, 8);
+// Generate valid peer IDs using the server's endpoint
+async function generateValidPeerId() {
+  try {
+    const response = await fetch('https://pigeonhub-server-3c044110c06f.herokuapp.com/generate-peer-id');
+    const data = await response.json();
+    return data.peerId;
+  } catch (error) {
+    // Fallback: generate 40-character hex string
+    return crypto.randomBytes(20).toString('hex');
+  }
+}
+
+const peer1Id = await generateValidPeerId();
+const peer2Id = await generateValidPeerId();
 
 console.log(`🆔 Peer1 ID: ${peer1Id}...`);
 console.log(`🆔 Peer2 ID: ${peer2Id}...`);
@@ -16,8 +29,8 @@ let signalsReceived = 0;
 let expectedSignals = ['offer', 'answer', 'ice-candidate'];
 let receivedSignals = [];
 
-const peer1 = new WebSocket(`wss://pigeonhub-server-3c044110c06f.herokuapp.com?peerId=${peer1Id}${crypto.randomBytes(20).toString('hex')}`);
-const peer2 = new WebSocket(`wss://pigeonhub.fly.dev?peerId=${peer2Id}${crypto.randomBytes(20).toString('hex')}`);
+const peer1 = new WebSocket(`wss://pigeonhub-server-3c044110c06f.herokuapp.com?peerId=${peer1Id}`);
+const peer2 = new WebSocket(`wss://pigeonhub.fly.dev?peerId=${peer2Id}`);
 
 peer1.on('open', () => {
     console.log('✅ Peer1-Heroku connected');
@@ -62,11 +75,10 @@ function startTest() {
     setTimeout(() => {
         console.log('1️⃣ Sending offer from Peer1-Heroku to Peer2-Fly...');
         peer1.send(JSON.stringify({
-            type: 'signal',
+            type: 'offer',
             fromPeerId: peer1Id,
             targetPeerId: peer2Id,
-            signalType: 'offer',
-            signalData: { type: 'offer', sdp: 'test-offer-sdp' }
+            data: { type: 'offer', sdp: 'test-offer-sdp' }
         }));
     }, 500);
     
@@ -74,11 +86,10 @@ function startTest() {
     setTimeout(() => {
         console.log('2️⃣ Sending answer from Peer2-Fly to Peer1-Heroku...');
         peer2.send(JSON.stringify({
-            type: 'signal',
+            type: 'answer',
             fromPeerId: peer2Id,
             targetPeerId: peer1Id,
-            signalType: 'answer',
-            signalData: { type: 'answer', sdp: 'test-answer-sdp' }
+            data: { type: 'answer', sdp: 'test-answer-sdp' }
         }));
     }, 1500);
     
@@ -86,11 +97,10 @@ function startTest() {
     setTimeout(() => {
         console.log('3️⃣ Sending ICE candidate from Peer1-Heroku to Peer2-Fly...');
         peer1.send(JSON.stringify({
-            type: 'signal',
+            type: 'ice-candidate',
             fromPeerId: peer1Id,
             targetPeerId: peer2Id,
-            signalType: 'ice-candidate',
-            signalData: { candidate: 'test-candidate', sdpMLineIndex: 0 }
+            data: { candidate: 'test-candidate', sdpMLineIndex: 0 }
         }));
     }, 2500);
 }
@@ -99,10 +109,12 @@ peer1.on('message', (data) => {
     try {
         const message = JSON.parse(data.toString());
         
-        if (message.type === 'signal') {
+        if (message.type === 'offer' || message.type === 'answer' || message.type === 'ice-candidate') {
             signalsReceived++;
-            receivedSignals.push(message.signalType);
-            console.log(`✅ Peer1-Heroku received ${message.signalType} from ${message.fromPeerId?.substring(0, 8)}...`);
+            receivedSignals.push(message.type);
+            console.log(`✅ Peer1-Heroku received ${message.type} from ${message.fromPeerId?.substring(0, 8)}... (TARGET: ${message.targetPeerId?.substring(0, 8)})`);
+        } else if (message.type === 'error') {
+            console.log(`❌ Peer1-Heroku error: ${message.error}`);
         } else {
             console.log(`📨 Peer1-Heroku: ${message.type}`);
         }
@@ -115,10 +127,12 @@ peer2.on('message', (data) => {
     try {
         const message = JSON.parse(data.toString());
         
-        if (message.type === 'signal') {
+        if (message.type === 'offer' || message.type === 'answer' || message.type === 'ice-candidate') {
             signalsReceived++;
-            receivedSignals.push(message.signalType);
-            console.log(`✅ Peer2-Fly received ${message.signalType} from ${message.fromPeerId?.substring(0, 8)}...`);
+            receivedSignals.push(message.type);
+            console.log(`✅ Peer2-Fly received ${message.type} from ${message.fromPeerId?.substring(0, 8)}... (TARGET: ${message.targetPeerId?.substring(0, 8)})`);
+        } else if (message.type === 'error') {
+            console.log(`❌ Peer2-Fly error: ${message.error}`);
         } else {
             console.log(`📨 Peer2-Fly: ${message.type}`);
         }

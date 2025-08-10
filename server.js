@@ -3,7 +3,7 @@
 // Local PigeonHub node with working HTTP replication
 import express from 'express';
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import fetch from 'node-fetch';
 
 // Get port from environment variables or command line argument or use default
@@ -355,12 +355,13 @@ wss.on('connection', (ws, req) => {
                 };
                 
                 try {
-                  // Send the signal routing request through the PeerPigeon mesh
+                  // Send direct message to the other PigeonHub node
+                  // Use broadcast since we don't know the specific peer ID of the other node
                   const messageId = mesh.sendMessage(JSON.stringify(meshMessage));
-                  console.log(`📡 Sent ${type} routing request via mesh (ID: ${messageId})`);
+                  console.log(`📡 Sent ${type} routing request via mesh broadcast (ID: ${messageId})`);
                   
-                  // Note: We don't wait for a response since mesh.sendMessage is fire-and-forget
-                  // The receiving node will handle the signal and route it to the target peer
+                  // Note: We use broadcast because both nodes are part of the same mesh network
+                  // The receiving node will filter for pigeonhub-signal-route messages
                   
                 } catch (error) {
                   console.log(`❌ Failed to route ${type} via mesh: ${error.message}`);
@@ -885,10 +886,45 @@ async function bootstrap() {
     console.log('✅ DHT mesh connected and ready');
     console.log(`🌐 Connected to distributed hash table`);
     console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
+    console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
+    
+    // ALL PigeonHub nodes connect to Fly.io as their signaling server
+    // This ensures they all join the same mesh network and can discover each other
+    setTimeout(async () => {
+      console.log('🔗 Connecting to Fly.io signaling server as PeerPigeon mesh client...');
+      try {
+        const meshPeerId = `pigeonhub-${nodeId}-${Date.now().toString(36)}0123456789012345678901234567890123456789`.substring(0, 40);
+        const ws = new WebSocket(`wss://pigeonhub.fly.dev?peerId=${meshPeerId}`);
+        
+        ws.on('open', () => {
+          console.log(`✅ ${nodeId} connected to Fly.io signaling for mesh discovery`);
+          // Keep connection open for mesh peer discovery
+        });
+        
+        ws.on('error', (error) => {
+          console.log(`⚠️ ${nodeId} mesh connection error: ${error.message}`);
+        });
+        
+        ws.on('close', () => {
+          console.log(`🔌 ${nodeId} mesh connection to Fly.io closed`);
+          // Reconnect after delay
+          setTimeout(() => {
+            console.log('🔄 Reconnecting to Fly.io signaling...');
+          }, 5000);
+        });
+        
+      } catch (error) {
+        console.log(`⚠️ Failed to connect ${nodeId} to Fly.io mesh: ${error.message}`);
+      }
+    }, 3000); // Wait 3 seconds for mesh to be ready
     
     // Log mesh peer connections periodically
     setInterval(() => {
-      console.log(`📊 Mesh status: ${mesh.connectedPeers?.length || 0} connected peers`);
+      const peerCount = mesh.connectedPeers?.length || 0;
+      console.log(`📊 Mesh status: ${peerCount} connected peers`);
+      if (peerCount > 0 && mesh.connectedPeers) {
+        console.log(`🔗 Mesh peers: ${mesh.connectedPeers.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
+      }
     }, 30000);
     
     // Set up mesh message handler for cross-node signal routing

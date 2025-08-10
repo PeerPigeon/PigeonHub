@@ -91,17 +91,34 @@ async function testCrossNodeSignaling() {
   console.log('🧪 Testing Cross-Node PeerPigeon Mesh Signaling');
   console.log('================================================\n');
   
-  // Generate peer IDs
-  const peer1Id = generatePeerId();
-  const peer2Id = generatePeerId();
-  
-  console.log(`🆔 Peer1 ID: ${peer1Id.substring(0, 8)}...`);
+#!/usr/bin/env node
+
+import WebSocket from 'ws';
+import crypto from 'crypto';
+import { generatePeerId } from 'peerpigeon';
+
+console.log('🧪 Testing Cross-Node PeerPigeon Mesh Signaling');
+console.log('================================================');
+
+// Generate peer IDs using PeerPigeon's method
+const peer1Id = generatePeerId();
+const peer2Id = generatePeerId();  console.log(`🆔 Peer1 ID: ${peer1Id.substring(0, 8)}...`);
   console.log(`🆔 Peer2 ID: ${peer2Id.substring(0, 8)}...`);
   console.log();
   
   try {
     // Connect peer1 to Heroku, peer2 to Fly.io
-    console.log('1️⃣ Connecting peers to different nodes...');
+    #!/usr/bin/env node
+
+// Test cross-node WebRTC signaling through PeerPigeon mesh
+import WebSocket from 'ws';
+import { setTimeout } from 'timers/promises';
+import { generatePeerId } from 'peerpigeon';
+
+const NODES = [
+  'wss://pigeonhub-server-3c044110c06f.herokuapp.com',
+  'wss://pigeonhub.fly.dev'
+];
     const [peer1, peer2] = await Promise.all([
       connectPeer(NODES[0], peer1Id, 'Peer1-Heroku'),
       connectPeer(NODES[1], peer2Id, 'Peer2-Fly')
