@@ -770,44 +770,56 @@ app.get('/api/find/:topic', async (req, res) => {
   }
 });
 
-// Bootstrap DHT with simple single-server architecture
+// Bootstrap by connecting to Fly.io as a PeerPigeon peer
 async function bootstrap() {
   if (isBootstrapping) return;
   isBootstrapping = true;
   
   try {
     console.log('🔗 Loading PeerPigeon modules...');
-    const { SignalDirectory, bootstrapPeerPigeon } = await import('./src/index.js');
+    const { SignalDirectory, PeerPigeonDhtAdapter } = await import('./src/index.js');
     
-    console.log('🌱 Connecting to shared signaling server as PeerPigeon client...');
+    console.log('🌱 Connecting to PeerPigeon mesh via Fly.io...');
+    console.log(`📡 This Heroku server will connect as mesh peer`);
+    console.log(`🆔 Node ID: ${nodeId}`);
     
-    // Simple architecture: Both nodes connect to ONE signaling server
-    // Fly.io server acts as the shared bootstrap/signaling server
-    // This server connects to Fly.io as a PeerPigeon client via WebSocket
-    const sharedSignalingServer = process.env.SHARED_SIGNALING_SERVER || 'wss://pigeonhub.fly.dev';
+    // Import PeerPigeon
+    let PeerPigeonMesh;
+    try {
+      const peerpigeon = await import('peerpigeon');
+      PeerPigeonMesh = peerpigeon.default || peerpigeon.PeerPigeonMesh || peerpigeon;
+    } catch (error) {
+      throw new Error(`Failed to import peerpigeon: ${error.message}`);
+    }
     
-    console.log(`📡 Connecting to shared signaling server: ${sharedSignalingServer}`);
-    console.log(`🆔 This node ID: ${nodeId}`);
+    // Create mesh that will connect to Fly.io
+    mesh = new PeerPigeonMesh({
+      enableWebDHT: true, // Enable internal DHT within the mesh
+      nodeId: nodeId
+    });
     
-    const bootstrapPeers = [
-      { 
-        t: 'wss', // Use secure WebSocket for Fly.io
-        u: sharedSignalingServer,
-        region: 'shared',
-        priority: 1,
-        description: 'Fly.io signaling server for mesh discovery'
-      }
-    ];
+    // Initialize the mesh
+    await mesh.init();
+    console.log('✅ PeerPigeon mesh initialized');
     
-    const result = await bootstrapPeerPigeon({
-      appId: process.env.APP_ID || 'pigeonhub-mesh',
-      hardcodedSeeds: bootstrapPeers,
-      maxRetries: 5,
-      retryDelay: 2000,
-      meshOpts: {
-        enableWebDHT: true,
-        timeout: 15000,
-        maxPeers: 50,
+    // Connect to Fly.io as a peer in the mesh
+    console.log('🔗 Connecting to Fly.io mesh peer...');
+    try {
+      await mesh.connectToPeer('wss://pigeonhub.fly.dev');
+      console.log('✅ Connected to Fly.io mesh peer');
+    } catch (error) {
+      console.log(`⚠️  Could not connect to Fly.io peer: ${error.message}`);
+      console.log('🔄 Will continue with local mesh...');
+    }
+    
+    // WebDHT is now available inside the mesh
+    if (mesh.webDHT) {
+      console.log('✅ Internal WebDHT ready');
+      dht = new PeerPigeonDhtAdapter({ mesh });
+      signalDir = new SignalDirectory(dht);
+    } else {
+      console.log('⚠️  WebDHT not available in mesh');
+    }
         nodeId: nodeId  // Add unique node identifier
       }
     });
