@@ -150,7 +150,14 @@ wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const queryPeerId = url.searchParams.get('peerId');
 
-  if (!queryPeerId || !validatePeerId(queryPeerId)) {
+  // Check if this is a PeerPigeon mesh connection (no peerId query param)
+  if (!queryPeerId) {
+    console.log(`🔗 PeerPigeon mesh peer connection detected`);
+    // Let PeerPigeon handle this connection - don't close it
+    return;
+  }
+
+  if (!validatePeerId(queryPeerId)) {
     console.log(`❌ Invalid peerId: ${queryPeerId}`);
     ws.close(1008, 'Invalid peerId');
     return;
@@ -792,25 +799,19 @@ async function bootstrap() {
       throw new Error(`Failed to import peerpigeon: ${error.message}`);
     }
     
-    // Create mesh that will connect to Fly.io
+    // Create mesh node as bootstrap (both nodes are independent bootstrap nodes)
     mesh = new PeerPigeonMesh({
       enableWebDHT: true, // Enable internal DHT within the mesh
-      nodeId: nodeId
+      nodeId: nodeId,
+      bootstrap: true // This node acts as bootstrap - peers will connect through mesh discovery
     });
     
     // Initialize the mesh
     await mesh.init();
-    console.log('✅ PeerPigeon mesh initialized');
+    console.log('✅ PeerPigeon mesh initialized as bootstrap node');
     
-    // Connect to Fly.io as a peer in the mesh
-    console.log('🔗 Connecting to Fly.io mesh peer...');
-    try {
-      await mesh.connectToPeer('wss://pigeonhub.fly.dev');
-      console.log('✅ Connected to Fly.io mesh peer');
-    } catch (error) {
-      console.log(`⚠️  Could not connect to Fly.io peer: ${error.message}`);
-      console.log('🔄 Will continue with local mesh...');
-    }
+    // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
+    console.log('� Relying on PeerPigeon mesh discovery for inter-node connections...');
     
     // WebDHT is now available inside the mesh
     if (mesh.webDHT) {

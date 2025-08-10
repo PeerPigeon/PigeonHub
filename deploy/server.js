@@ -156,7 +156,14 @@ wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const queryPeerId = url.searchParams.get('peerId');
 
-  if (!queryPeerId || !validatePeerId(queryPeerId)) {
+  // Check if this is a PeerPigeon mesh connection (no peerId query param)
+  if (!queryPeerId) {
+    console.log(`🔗 PeerPigeon mesh peer connection detected`);
+    // Let PeerPigeon handle this connection - don't close it
+    return;
+  }
+
+  if (!validatePeerId(queryPeerId)) {
     console.log(`❌ Invalid peerId: ${queryPeerId}`);
     ws.close(1008, 'Invalid peerId');
     return;
