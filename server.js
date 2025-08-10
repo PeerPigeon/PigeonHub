@@ -826,33 +826,35 @@ async function bootstrap() {
     
     console.log('✅ Mesh connected and ready');
     console.log(`🌐 Connected to PeerPigeon mesh`);
-    console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
+    console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
     // Log mesh peer connections periodically
     setInterval(() => {
-      const peerCount = mesh.connectedPeers?.length || 0;
+      const peerCount = mesh.getConnectedPeerCount();
       console.log(`📊 Mesh status: ${peerCount} connected peers`);
-      if (peerCount > 0 && mesh.connectedPeers) {
-        console.log(`🔗 Mesh peers: ${mesh.connectedPeers.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
+      if (peerCount > 0) {
+        const peerIds = mesh.getConnectedPeerIds();
+        console.log(`🔗 Mesh peers: ${peerIds.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
       }
     }, 30000);
     
     console.log('✅ DHT mesh connected and ready');
     console.log(`🌐 Connected to distributed hash table`);
-    console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
+    console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
     // Don't use WebSocket connections for mesh discovery - they create circular deps
     // The PeerPigeon DHT should discover peers automatically through bootstrap
-    console.log('� Relying on DHT bootstrap for mesh peer discovery...');
+    console.log('🎯 Relying on DHT bootstrap for mesh peer discovery...');
     
     // Log mesh peer connections periodically
     setInterval(() => {
-      const peerCount = mesh.connectedPeers?.length || 0;
+      const peerCount = mesh.getConnectedPeerCount();
       console.log(`📊 Mesh status: ${peerCount} connected peers`);
-      if (peerCount > 0 && mesh.connectedPeers) {
-        console.log(`🔗 Mesh peers: ${mesh.connectedPeers.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
+      if (peerCount > 0) {
+        const peerIds = mesh.getConnectedPeerIds();
+        console.log(`🔗 Mesh peers: ${peerIds.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
       }
     }, 30000);
     
@@ -904,7 +906,7 @@ async function bootstrap() {
           
           // Notify all local peers about the remote peer
           let notifiedCount = 0;
-          for (const [localPeerId, peerConnection] of Object.entries(connectedPeers)) {
+          for (const [localPeerId, peerConnection] of connections.entries()) {
             if (localPeerId !== messageData.peerId && peerConnection && peerConnection.readyState === WebSocket.OPEN) {
               try {
                 peerConnection.send(JSON.stringify({
