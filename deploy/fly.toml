@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for peersignal-us-east-1754699348 on 2025-08-08T19:29:49-05:00
+# fly.toml app configuration file for PigeonHub
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'peersignal-us-east-1754699348'
+app = 'pigeonhub'
 primary_region = 'iad'
 
 [build]

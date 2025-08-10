@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # PigeonHub Multi-Platform Deployment Script
-# This script deploys signaling nodes across multiple cloud platforms
+# Deploys signaling nodes to Heroku and Fly.io using server.js directly
 
 set -e
 
@@ -43,22 +43,10 @@ echo ""
 echo "🔧 Checking optional deployment tools..."
 
 # Check tools and set availability flags
-if warn_tool "wrangler" "Cloudflare Workers"; then
-    CLOUDFLARE_AVAILABLE=1
-else
-    CLOUDFLARE_AVAILABLE=0
-fi
-
 if warn_tool "heroku" "Heroku"; then
     HEROKU_AVAILABLE=1
 else
     HEROKU_AVAILABLE=0
-fi
-
-if warn_tool "railway" "Railway"; then
-    RAILWAY_AVAILABLE=1
-else
-    RAILWAY_AVAILABLE=0
 fi
 
 if warn_tool "flyctl" "Fly.io"; then
@@ -67,48 +55,166 @@ else
     FLY_AVAILABLE=0
 fi
 
-if warn_tool "vercel" "Vercel"; then
-    VERCEL_AVAILABLE=1
-else
-    VERCEL_AVAILABLE=0
-fi
-
 echo ""
 echo "🔑 Setting up environment variables..."
 
-# Generate Ed25519 keypair if not provided
-if [ -z "$SEED_PRIVATE_KEY" ] || [ -z "$SEED_PUBLIC_KEY" ]; then
-    echo "📝 Generating new Ed25519 keypair for seed signing..."
+# Deploy to Heroku
+deploy_heroku() {
+    echo ""
+    echo "🟣 Deploying to Heroku..."
     
-    # Run the key generation script
-    KEY_OUTPUT=$(node deploy/generate-keys.mjs)
+    # Store original directory
+    ORIGINAL_DIR=$(pwd)
     
-    if [ $? -eq 0 ]; then
-        echo "$KEY_OUTPUT"
-        echo ""
-        echo "⚠️  Please save these keys securely and set them as environment variables"
-        echo "   For this deployment session, you can run:"
-        echo "   export SEED_PRIVATE_KEY='<private_key_value>'"
-        echo "   export SEED_PUBLIC_KEY='<public_key_value>'"
-        echo ""
-        echo "💡 Or save them to a .env file (don't commit to git!):"
-        echo "   echo 'SEED_PRIVATE_KEY=<private_key_value>' >> .env"
-        echo "   echo 'SEED_PUBLIC_KEY=<public_key_value>' >> .env"
-        echo ""
-        
-        # Extract keys from output for this session
-        SEED_PRIVATE_KEY=$(echo "$KEY_OUTPUT" | grep "SEED_PRIVATE_KEY=" | cut -d'=' -f2)
-        SEED_PUBLIC_KEY=$(echo "$KEY_OUTPUT" | grep "SEED_PUBLIC_KEY=" | cut -d'=' -f2)
-        
-        export SEED_PRIVATE_KEY
-        export SEED_PUBLIC_KEY
-        
-        echo "🔑 Keys have been set for this deployment session"
-    else
-        echo "❌ Failed to generate keys. Please set SEED_PRIVATE_KEY and SEED_PUBLIC_KEY manually."
-        exit 1
-    fi
+    # Create temporary deployment directory
+    TEMP_DIR=$(mktemp -d)
+    cd $TEMP_DIR
+    
+    # Copy the main server.js and supporting files
+    cp "$ORIGINAL_DIR/server.js" ./server.js
+    cp "$ORIGINAL_DIR/deploy/heroku-package.json" ./package.json
+    cp "$ORIGINAL_DIR/deploy/Procfile" ./Procfile
+    
+    # Copy the src directory for PeerPigeon dependencies
+    cp -r "$ORIGINAL_DIR/src" ./src
+    
+    # Initialize git repo with automation
+    git init -q
+    git checkout -b main -q
+    git config user.email "deploy@pigeonhub.io"
+    git config user.name "PigeonHub Deploy"
+    git add . -A
+    git commit -m "Automated deployment using server.js" -q
+    
+    # Create Heroku app with automation
+    APP_NAME="pigeonhub-server-$(date +%s)"
+    heroku create $APP_NAME --region us --json > /dev/null
+    
+    # Set environment variables (batch mode)
+    heroku config:set 
+        APP_ID="$APP_ID" 
+        REGION="$REGION" 
+        MAX_PEERS="$MAX_PEERS" 
+        NODE_ENV="production" 
+        --app $APP_NAME > /dev/null
+    
+    # Deploy with quiet mode
+    echo "🚀 Pushing to Heroku..."
+    git push heroku main -q
+    
+    echo "✅ Heroku deployment complete: https://$APP_NAME.herokuapp.com"
+    echo "   WebSocket URL: wss://$APP_NAME.herokuapp.com"
+    echo "   Health check: https://$APP_NAME.herokuapp.com/health"
+    
+    cd "$ORIGINAL_DIR"
+    rm -rf $TEMP_DIR
+}
+
+# Deploy to Fly.io
+deploy_fly() {
+    echo ""
+    echo "🪰 Deploying to Fly.io..."
+    
+    # Store original directory
+    ORIGINAL_DIR=$(pwd)
+    
+    # Create temporary deployment directory
+    TEMP_DIR=$(mktemp -d)
+    cd $TEMP_DIR
+    
+    # Copy necessary files
+    cp "$ORIGINAL_DIR/server.js" ./server.js
+    cp "$ORIGINAL_DIR/package.json" ./package.json
+    cp "$ORIGINAL_DIR/deploy/fly.toml" ./fly.toml
+    
+    # Copy the src directory for PeerPigeon dependencies
+    cp -r "$ORIGINAL_DIR/src" ./src
+    
+    # Create Dockerfile for Fly.io
+    cat > Dockerfile << EOF
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --omit=dev
+
+# Copy the entire project
+COPY . .
+
+# Expose the port
+EXPOSE 8080
+
+# Start the application
+CMD ["node", "server.js"]
+EOF
+    
+    # Deploy to Fly.io
+    echo "🚀 Deploying to Fly.io..."
+    flyctl deploy --remote-only
+    
+    echo "✅ Fly.io deployment complete: https://pigeonhub.fly.dev"
+    echo "   WebSocket URL: wss://pigeonhub.fly.dev"
+    echo "   Health check: https://pigeonhub.fly.dev/health"
+    
+    cd "$ORIGINAL_DIR"
+    rm -rf $TEMP_DIR
+}
+
+# Main deployment logic
+echo ""
+echo "🚀 Starting deployments..."
+
+DEPLOYED_COUNT=0
+
+if [ $HEROKU_AVAILABLE -eq 1 ]; then
+    deploy_heroku
+    DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
 fi
+
+if [ $FLY_AVAILABLE -eq 1 ]; then
+    deploy_fly
+    DEPLOYED_COUNT=$((DEPLOYED_COUNT + 1))
+fi
+
+echo ""
+echo "🎉 Deployment Summary"
+echo "===================="
+echo "✅ Deployed to $DEPLOYED_COUNT platform(s)"
+echo ""
+
+if [ $HEROKU_AVAILABLE -eq 1 ]; then
+    echo "🟣 Heroku: wss://pigeonhub-server-<timestamp>.herokuapp.com"
+fi
+
+if [ $FLY_AVAILABLE -eq 1 ]; then
+    echo "🪰 Fly.io: wss://pigeonhub.fly.dev"
+fi
+
+echo ""
+echo "� Bootstrap Configuration"
+echo "========================="
+echo "Add these to your PeerPigeon bootstrap peers:"
+echo ""
+
+if [ $HEROKU_AVAILABLE -eq 1 ]; then
+    echo '{ "t": "wss", "u": "wss://pigeonhub-server-3c044110c06f.herokuapp.com" },'
+fi
+
+if [ $FLY_AVAILABLE -eq 1 ]; then
+    echo '{ "t": "wss", "u": "wss://pigeonhub.fly.dev" },'
+fi
+
+echo ""
+echo "🔧 Environment Variables Used:"
+echo "APP_ID=$APP_ID"
+echo "REGION=$REGION" 
+echo "MAX_PEERS=$MAX_PEERS"
+echo ""
+echo "✅ All deployments complete!"
 
 # Deploy to Cloudflare Workers
 deploy_cloudflare() {

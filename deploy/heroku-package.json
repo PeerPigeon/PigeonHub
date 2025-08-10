@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "description": "PigeonHub signaling node for Heroku deployment",
-  "main": "heroku-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node heroku-server.js",
-    "dev": "NODE_ENV=development node heroku-server.js",
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
-    "peerpigeon": "latest",
     "express": "^4.18.0",
+    "node-fetch": "^3.3.2",
+    "peerpigeon": "latest",
     "ws": "^8.14.0"
   },
   "engines": {
