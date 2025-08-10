@@ -887,7 +887,19 @@ async function bootstrap() {
     // Set up mesh message handler for cross-node signal routing
     mesh.addEventListener('messageReceived', (messageEvent) => {
       try {
-        const messageData = JSON.parse(messageEvent.data);
+        console.log(`🔍 Raw mesh message event:`, JSON.stringify(messageEvent, null, 2));
+        
+        // Try different possible message data properties
+        let rawMessage = messageEvent.data || messageEvent.message || messageEvent.content || messageEvent;
+        
+        if (typeof rawMessage === 'string') {
+          console.log(`📝 Raw message string:`, rawMessage);
+        } else {
+          console.log(`📦 Raw message object:`, JSON.stringify(rawMessage, null, 2));
+          rawMessage = JSON.stringify(rawMessage);
+        }
+        
+        const messageData = JSON.parse(rawMessage);
         
         // Only handle PigeonHub signal routing messages
         if (messageData.messageType === 'pigeonhub-signal-route') {
@@ -912,9 +924,12 @@ async function bootstrap() {
           } else {
             console.log(`⚠️  Target peer ${messageData.targetPeerId?.substring(0, 8)}... not found on this node either`);
           }
+        } else {
+          console.log(`🔄 Ignoring non-routing mesh message:`, messageData?.messageType || 'unknown');
         }
       } catch (error) {
         console.log(`❌ Error processing mesh message: ${error.message}`);
+        console.log(`🔍 Message event structure:`, Object.keys(messageEvent || {}));
       }
     });
     
