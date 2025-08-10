@@ -899,7 +899,15 @@ async function bootstrap() {
           rawMessage = JSON.stringify(rawMessage);
         }
         
-        const messageData = JSON.parse(rawMessage);
+        // Try to parse as JSON, but handle errors gracefully
+        let messageData;
+        try {
+          messageData = JSON.parse(rawMessage);
+        } catch (parseError) {
+          console.log(`⚠️  Failed to parse mesh message as JSON:`, parseError.message);
+          console.log(`🔍 Raw message was:`, rawMessage);
+          return; // Skip this message if we can't parse it
+        }
         
         // Only handle PigeonHub signal routing messages
         if (messageData.messageType === 'pigeonhub-signal-route') {

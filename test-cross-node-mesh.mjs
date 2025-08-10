@@ -49,7 +49,8 @@ async function connectPeer(nodeUrl, peerId, name) {
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        console.log(`📨 ${name} received:`, message.type, message.fromPeerId?.substring(0, 8) + '...');
+        const fromPeer = message.fromPeerId ? message.fromPeerId.substring(0, 8) + '...' : 'system';
+        console.log(`📨 ${name} received:`, message.type, fromPeer);
       } catch (error) {
         console.log(`❌ ${name} parse error:`, error.message);
       }
