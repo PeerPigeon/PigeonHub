@@ -820,14 +820,22 @@ async function bootstrap() {
     } else {
       console.log('⚠️  WebDHT not available in mesh');
     }
-        nodeId: nodeId  // Add unique node identifier
-      }
-    });
     
-    mesh = result.mesh;
-    dht = result.dht;
-    signalDir = new SignalDirectory(dht);
     connectedToMesh = true;
+    
+    console.log('✅ Mesh connected and ready');
+    console.log(`🌐 Connected to PeerPigeon mesh`);
+    console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
+    console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
+    
+    // Log mesh peer connections periodically
+    setInterval(() => {
+      const peerCount = mesh.connectedPeers?.length || 0;
+      console.log(`📊 Mesh status: ${peerCount} connected peers`);
+      if (peerCount > 0 && mesh.connectedPeers) {
+        console.log(`🔗 Mesh peers: ${mesh.connectedPeers.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
+      }
+    }, 30000);
     
     console.log('✅ DHT mesh connected and ready');
     console.log(`🌐 Connected to distributed hash table`);
