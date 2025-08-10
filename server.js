@@ -783,18 +783,19 @@ async function bootstrap() {
     
     // Simple architecture: Both nodes connect to ONE signaling server
     // Fly.io server acts as the shared bootstrap/signaling server
-    const sharedSignalingServer = process.env.SHARED_SIGNALING_SERVER || 'ws://pigeonhub-deploy.fly.dev:8080';
+    // This server connects to Fly.io as a PeerPigeon client via WebSocket
+    const sharedSignalingServer = process.env.SHARED_SIGNALING_SERVER || 'wss://pigeonhub.fly.dev';
     
     console.log(`📡 Connecting to shared signaling server: ${sharedSignalingServer}`);
     console.log(`🆔 This node ID: ${nodeId}`);
     
     const bootstrapPeers = [
       { 
-        t: 'ws', 
+        t: 'wss', // Use secure WebSocket for Fly.io
         u: sharedSignalingServer,
         region: 'shared',
         priority: 1,
-        description: 'Shared signaling server for mesh discovery'
+        description: 'Fly.io signaling server for mesh discovery'
       }
     ];
     

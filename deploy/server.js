@@ -768,21 +768,23 @@ async function bootstrap() {
     console.log('🌱 Starting PeerPigeon mesh with simple architecture...');
     
     // Simple architecture: This Fly.io server acts as the shared signaling server
-    // Other nodes (like Heroku) will connect to this server as PeerPigeon clients
-    console.log(`📡 This server will act as shared signaling server (Fly.io)`);
+    // It bootstraps as a standalone node and accepts connections from other nodes
+    console.log(`📡 This Fly.io server will act as standalone mesh bootstrap`);
     console.log(`🆔 This node ID: ${nodeId}`);
     
-    // Fly.io server bootstraps with empty peers - it IS the signaling server
+    // Fly.io server bootstraps as standalone - no external seeds needed
+    // It becomes the mesh root that other nodes connect to
     const result = await bootstrapPeerPigeon({
       appId: process.env.APP_ID || 'pigeonhub-mesh',
-      hardcodedSeeds: [], // Empty - this server is the bootstrap
-      maxRetries: 5,
-      retryDelay: 2000,
+      hardcodedSeeds: [], // Empty - this IS the bootstrap server
+      maxRetries: 3, // Fewer retries since it's standalone
+      retryDelay: 1000,
       meshOpts: {
         enableWebDHT: true,
         timeout: 15000,
         maxPeers: 50,
-        nodeId: nodeId
+        nodeId: nodeId,
+        bootstrap: true // This node acts as bootstrap
       }
     });
     
