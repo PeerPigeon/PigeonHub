@@ -283,46 +283,27 @@ wss.on('connection', (ws, req) => {
               name: `local-${p}` 
             }));
 
-          if (otherNodes.length > 0) {
-            console.log(`🌐 Broadcasting peer ${messageData?.name || peerId.substring(0, 8) + '...'} to ${otherNodes.length} other nodes...`);
-            
-            for (const node of otherNodes) {
-              try {
-                const peerAnnouncement = {
-                  type: 'peer-announcement',
-                  peerId,
-                  nodeId,
-                  data: messageData,
-                  fromNode: nodeId
-                };
-                
-                console.log(`📡 Announcing to ${node.name}: ${node.url}...`);
-                
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // Longer timeout for production
-                
-                fetch(`${node.url}/api/announce-peer`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(peerAnnouncement),
-                  signal: controller.signal
-                }).then(async response => {
-                  clearTimeout(timeoutId);
-                  if (response.ok) {
-                    const result = await response.json();
-                    console.log(`✅ Announced peer to ${node.name}, notified ${result.notifiedPeers} peers`);
-                  } else {
-                    console.log(`❌ Failed to announce peer to ${node.name}: ${response.status}`);
-                  }
-                }).catch(error => {
-                  clearTimeout(timeoutId);
-                  console.log(`⚠️ Failed to announce peer to ${node.name}: ${error.message}`);
-                });
-                
-              } catch (error) {
-                console.log(`⚠️ Cross-node announcement to port ${otherPort} failed: ${error.message}`);
-              }
+          // REMOVED: No more HTTP announcements - use PeerPigeon mesh only
+          console.log('🌐 Broadcasting peer announcement via PeerPigeon mesh...');
+          
+          if (mesh && connectedToMesh) {
+            try {
+              const meshMessage = {
+                type: 'peer-announcement',
+                peerId: peerId,
+                name: messageData?.name || 'unnamed',
+                sourceNode: nodeId,
+                timestamp: Date.now()
+              };
+              
+              console.log('📤 Sending mesh announcement:', JSON.stringify(meshMessage));
+              mesh.sendMessage(JSON.stringify(meshMessage));
+              console.log('✅ Sent peer announcement via PeerPigeon mesh');
+            } catch (error) {
+              console.error('❌ Failed to send PeerPigeon mesh announcement:', error.message);
             }
+          } else {
+            console.log('⚠️ PeerPigeon mesh not available for cross-node announcement');
           }
           break;
         }
@@ -567,50 +548,7 @@ app.get('/generate-peer-id', async (req, res) => {
 });
 
 // Accept peer announcements from other nodes
-app.post('/api/announce-peer', (req, res) => {
-  console.log(`📡 Cross-node peer announcement from ${req.body.fromNode}:`, {
-    peerId: req.body.peerId?.substring(0, 8) + '...',
-    name: req.body.data?.name,
-    sourceNode: req.body.nodeId
-  });
-  
-  const { peerId, nodeId: sourceNodeId, data, fromNode } = req.body;
-  
-  if (!peerId || !sourceNodeId) {
-    return res.status(400).json({ error: 'peerId and nodeId required' });
-  }
-  
-  // Don't store announcements from our own node
-  if (sourceNodeId === nodeId) {
-    return res.json({ success: true, message: 'Ignored self-announcement' });
-  }
-  
-  console.log(`🌐 Learning about peer ${data?.name || 'unnamed'} (${peerId.substring(0, 8)}...) on ${sourceNodeId}`);
-  console.log(`📊 Will notify ${connections.size} local peers`);
-  
-  let notifiedCount = 0;
-  // Notify all connected peers about this remote peer
-  for (const [localPeerId, connection] of connections) {
-    const success = sendToConnection(localPeerId, {
-      type: 'peer-discovered',
-      data: { peerId, nodeId: sourceNodeId, ...data },
-      fromPeerId: 'cross-node-discovery',
-      targetPeerId: localPeerId,
-      timestamp: Date.now()
-    });
-    if (success) {
-      notifiedCount++;
-      console.log(`✅ Notified local peer ${localPeerId.substring(0, 8)}... about remote peer`);
-    }
-  }
-  
-  res.json({
-    success: true,
-    notifiedPeers: notifiedCount,
-    totalConnected: connections.size,
-    nodeId
-  });
-});
+// REMOVED: HTTP announce-peer endpoint - using PeerPigeon mesh only
 
 // WebRTC peer list endpoint
 app.get('/peers', (req, res) => {
@@ -896,7 +834,7 @@ async function bootstrap() {
           return; // Skip this message if we can't parse it
         }
         
-        // Only handle PigeonHub signal routing messages
+        // Handle different types of mesh messages
         if (messageData.messageType === 'pigeonhub-signal-route') {
           console.log(`📨 Received mesh signal routing request for ${messageData.signalType} to peer ${messageData.targetPeerId?.substring(0, 8)}...`);
           
@@ -914,8 +852,30 @@ async function bootstrap() {
           } else {
             console.log(`⚠️  Target peer ${messageData.targetPeerId?.substring(0, 8)}... not found on this node`);
           }
+        } else if (messageData.type === 'peer-announcement') {
+          console.log(`� Received peer announcement via PeerPigeon mesh from ${messageData.sourceNode}: peer ${messageData.peerId?.substring(0, 8)}...`);
+          
+          // Notify all local peers about the remote peer
+          let notifiedCount = 0;
+          for (const [localPeerId, peerConnection] of Object.entries(connectedPeers)) {
+            if (localPeerId !== messageData.peerId && peerConnection && peerConnection.readyState === WebSocket.OPEN) {
+              try {
+                peerConnection.send(JSON.stringify({
+                  type: 'peer-announced',
+                  peerId: messageData.peerId,
+                  name: messageData.name || 'unnamed',
+                  sourceNode: messageData.sourceNode
+                }));
+                notifiedCount++;
+                console.log(`✅ Notified local peer ${localPeerId.substring(0, 8)}... about remote peer from ${messageData.sourceNode}`);
+              } catch (error) {
+                console.error(`❌ Failed to notify peer ${localPeerId}:`, error.message);
+              }
+            }
+          }
+          console.log(`📊 Notified ${notifiedCount} local peers about remote peer announcement`);
         } else {
-          console.log(`🔄 Ignoring non-routing mesh message:`, messageData?.messageType || 'unknown');
+          console.log(`🔄 Ignoring unknown mesh message type:`, messageData?.type || messageData?.messageType || 'unknown');
         }
       } catch (error) {
         console.log(`❌ Error processing mesh message: ${error.message}`);
