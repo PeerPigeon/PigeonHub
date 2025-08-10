@@ -888,35 +888,9 @@ async function bootstrap() {
     console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
-    // ALL PigeonHub nodes connect to Fly.io as their signaling server
-    // This ensures they all join the same mesh network and can discover each other
-    setTimeout(async () => {
-      console.log('🔗 Connecting to Fly.io signaling server as PeerPigeon mesh client...');
-      try {
-        const meshPeerId = `pigeonhub-${nodeId}-${Date.now().toString(36)}0123456789012345678901234567890123456789`.substring(0, 40);
-        const ws = new WebSocket(`wss://pigeonhub.fly.dev?peerId=${meshPeerId}`);
-        
-        ws.on('open', () => {
-          console.log(`✅ ${nodeId} connected to Fly.io signaling for mesh discovery`);
-          // Keep connection open for mesh peer discovery
-        });
-        
-        ws.on('error', (error) => {
-          console.log(`⚠️ ${nodeId} mesh connection error: ${error.message}`);
-        });
-        
-        ws.on('close', () => {
-          console.log(`🔌 ${nodeId} mesh connection to Fly.io closed`);
-          // Reconnect after delay
-          setTimeout(() => {
-            console.log('🔄 Reconnecting to Fly.io signaling...');
-          }, 5000);
-        });
-        
-      } catch (error) {
-        console.log(`⚠️ Failed to connect ${nodeId} to Fly.io mesh: ${error.message}`);
-      }
-    }, 3000); // Wait 3 seconds for mesh to be ready
+    // Don't use WebSocket connections for mesh discovery - they create circular deps
+    // The PeerPigeon DHT should discover peers automatically through bootstrap
+    console.log('� Relying on DHT bootstrap for mesh peer discovery...');
     
     // Log mesh peer connections periodically
     setInterval(() => {
