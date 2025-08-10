@@ -858,7 +858,8 @@ async function bootstrap() {
       meshOpts: {
         enableWebDHT: true,
         timeout: 10000,
-        maxPeers: 50
+        maxPeers: 50,
+        nodeId: nodeId  // Add unique node identifier
       }
     });
     
