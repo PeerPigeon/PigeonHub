@@ -884,6 +884,12 @@ async function bootstrap() {
     
     console.log('✅ DHT mesh connected and ready');
     console.log(`🌐 Connected to distributed hash table`);
+    console.log(`🔗 Mesh peer count: ${mesh.connectedPeers?.length || 0} peers`);
+    
+    // Log mesh peer connections periodically
+    setInterval(() => {
+      console.log(`📊 Mesh status: ${mesh.connectedPeers?.length || 0} connected peers`);
+    }, 30000);
     
     // Set up mesh message handler for cross-node signal routing
     mesh.addEventListener('messageReceived', (messageEvent) => {
