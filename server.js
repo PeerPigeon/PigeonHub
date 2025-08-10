@@ -918,6 +918,7 @@ async function bootstrap() {
             type: messageData.signalType,
             data: messageData.signalData,
             fromPeerId: messageData.fromPeerId,
+            targetPeerId: messageData.targetPeerId,
             timestamp: Date.now()
           });
           
