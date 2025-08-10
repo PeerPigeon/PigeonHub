@@ -889,8 +889,8 @@ async function bootstrap() {
       try {
         console.log(`🔍 Raw mesh message event:`, JSON.stringify(messageEvent, null, 2));
         
-        // Try different possible message data properties
-        let rawMessage = messageEvent.data || messageEvent.message || messageEvent.content || messageEvent;
+        // PeerPigeon uses 'content' field for message data
+        let rawMessage = messageEvent.content || messageEvent.data || messageEvent.message || messageEvent;
         
         if (typeof rawMessage === 'string') {
           console.log(`📝 Raw message string:`, rawMessage);
