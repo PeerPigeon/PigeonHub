@@ -763,33 +763,38 @@ async function bootstrap() {
   
   try {
     console.log('🔗 Loading PeerPigeon modules...');
-    const { SignalDirectory, bootstrapPeerPigeon } = await import('./src/index.js');
+    const { SignalDirectory, PeerPigeonDhtAdapter } = await import('./src/index.js');
     
-    console.log('🌱 Starting PeerPigeon mesh with simple architecture...');
+    console.log('🌱 Starting PeerPigeon mesh as standalone bootstrap...');
     
-    // Simple architecture: This Fly.io server acts as the shared signaling server
-    // It bootstraps as a standalone node and accepts connections from other nodes
+    // Fly.io server acts as standalone bootstrap - no seeds needed
     console.log(`📡 This Fly.io server will act as standalone mesh bootstrap`);
     console.log(`🆔 This node ID: ${nodeId}`);
     
-    // Fly.io server bootstraps as standalone - no external seeds needed
-    // It becomes the mesh root that other nodes connect to
-    const result = await bootstrapPeerPigeon({
-      appId: process.env.APP_ID || 'pigeonhub-mesh',
-      hardcodedSeeds: [], // Empty - this IS the bootstrap server
-      maxRetries: 3, // Fewer retries since it's standalone
-      retryDelay: 1000,
-      meshOpts: {
-        enableWebDHT: true,
-        timeout: 15000,
-        maxPeers: 50,
-        nodeId: nodeId,
-        bootstrap: true // This node acts as bootstrap
-      }
+    // Import PeerPigeon directly and create mesh as bootstrap root
+    let PeerPigeonMesh;
+    try {
+      const peerpigeon = await import('peerpigeon');
+      PeerPigeonMesh = peerpigeon.default || peerpigeon.PeerPigeonMesh || peerpigeon;
+    } catch (error) {
+      throw new Error(`Failed to import peerpigeon: ${error.message}`);
+    }
+    
+    // Create mesh directly as bootstrap node (no external seeds required)
+    mesh = new PeerPigeonMesh({
+      enableWebDHT: true,
+      timeout: 15000,
+      maxPeers: 50,
+      nodeId: nodeId,
+      bootstrap: true // This node acts as bootstrap root
     });
     
-    mesh = result.mesh;
-    dht = result.dht;
+    // Initialize the mesh as bootstrap
+    await mesh.init();
+    console.log('✅ Standalone mesh bootstrap initialized');
+    
+    // Create DHT adapter directly
+    dht = new PeerPigeonDhtAdapter({ mesh });
     signalDir = new SignalDirectory(dht);
     connectedToMesh = true;
     
