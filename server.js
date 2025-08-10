@@ -340,64 +340,46 @@ wss.on('connection', (ws, req) => {
             } else {
               console.log(`⚠️  Failed to send ${type} to ${targetPeerId.substring(0, 8)}... (peer not found locally)`);
               
-              // CROSS-NODE ROUTING: Try to route through other nodes
-              console.log(`🌐 Trying cross-node routing for ${type}...`);
-              const routingPayload = {
-                type,
-                data: messageData,
-                fromPeerId: peerId,
-                targetPeerId,
-                routingNode: nodeId
-              };
-              
-              const otherPorts = [3000, 3001, 3002, 3003].filter(p => p !== port);
-              let routedSuccessfully = false;
-              
-              console.log(`📡 Attempting to route ${type} to ${otherPorts.length} other nodes...`);
-              
-              for (const otherPort of otherPorts) {
+              // CROSS-NODE ROUTING: Use PeerPigeon mesh to route through other nodes
+              if (mesh && connectedToMesh) {
+                console.log(`🌐 Trying cross-node routing via PeerPigeon mesh for ${type}...`);
+                
+                const meshMessage = {
+                  messageType: 'pigeonhub-signal-route',
+                  signalType: type,
+                  signalData: messageData,
+                  fromPeerId: peerId,
+                  targetPeerId,
+                  routingNode: nodeId,
+                  timestamp: Date.now()
+                };
+                
                 try {
-                  console.log(`📡 Trying to route ${type} via port ${otherPort}...`);
+                  // Send the signal routing request through the PeerPigeon mesh
+                  const messageId = mesh.sendMessage(JSON.stringify(meshMessage));
+                  console.log(`📡 Sent ${type} routing request via mesh (ID: ${messageId})`);
                   
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 1000);
-                  
-                  fetch(`http://127.0.0.1:${otherPort}/api/route-signal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(routingPayload),
-                    signal: controller.signal
-                  }).then(response => {
-                    clearTimeout(timeoutId);
-                    
-                    if (response.ok) {
-                      return response.json();
-                    } else {
-                      console.log(`❌ Route failed to port ${otherPort}: ${response.status}`);
-                      return { routed: false };
-                    }
-                  }).then(result => {
-                    console.log(`📡 Route response from port ${otherPort}:`, result);
-                    if (result.routed) {
-                      console.log(`✅ Cross-node routed ${type} via port ${otherPort}`);
-                      routedSuccessfully = true;
-                    }
-                  }).catch(error => {
-                    clearTimeout(timeoutId);
-                    console.log(`⚠️ Route error to port ${otherPort}: ${error.message}`);
-                  });
+                  // Note: We don't wait for a response since mesh.sendMessage is fire-and-forget
+                  // The receiving node will handle the signal and route it to the target peer
                   
                 } catch (error) {
-                  console.log(`⚠️ Route error to port ${otherPort}: ${error.message}`);
+                  console.log(`❌ Failed to route ${type} via mesh: ${error.message}`);
+                  
+                  // Send error to sender since mesh routing failed
+                  ws.send(JSON.stringify({
+                    type: 'error',
+                    error: `Target peer ${targetPeerId.substring(0, 8)}... not found and mesh routing failed`,
+                    originalType: type,
+                    timestamp: Date.now()
+                  }));
                 }
-              }
-              
-              // If we couldn't route cross-node, send error to sender
-              if (!routedSuccessfully) {
-                console.log(`❌ Could not route ${type} to any node, sending error to sender`);
+              } else {
+                console.log(`❌ Mesh not available for cross-node routing`);
+                
+                // Send error to sender since no mesh available
                 ws.send(JSON.stringify({
                   type: 'error',
-                  error: `Target peer ${targetPeerId.substring(0, 8)}... not found on any node`,
+                  error: `Target peer ${targetPeerId.substring(0, 8)}... not found on this node and mesh unavailable`,
                   originalType: type,
                   timestamp: Date.now()
                 }));
@@ -901,6 +883,42 @@ async function bootstrap() {
     
     console.log('✅ DHT mesh connected and ready');
     console.log(`🌐 Connected to distributed hash table`);
+    
+    // Set up mesh message handler for cross-node signal routing
+    mesh.addEventListener('messageReceived', (messageEvent) => {
+      try {
+        const messageData = JSON.parse(messageEvent.data);
+        
+        // Only handle PigeonHub signal routing messages
+        if (messageData.messageType === 'pigeonhub-signal-route') {
+          console.log(`📨 Received mesh signal routing request for ${messageData.signalType} to peer ${messageData.targetPeerId?.substring(0, 8)}...`);
+          
+          // Don't process messages we sent ourselves
+          if (messageData.routingNode === nodeId) {
+            console.log(`⏭️  Ignoring own routing message`);
+            return;
+          }
+          
+          // Try to find the target peer locally
+          const success = sendToSpecificPeer(messageData.targetPeerId, {
+            type: messageData.signalType,
+            data: messageData.signalData,
+            fromPeerId: messageData.fromPeerId,
+            timestamp: Date.now()
+          });
+          
+          if (success) {
+            console.log(`✅ Successfully routed mesh ${messageData.signalType} to local peer ${messageData.targetPeerId?.substring(0, 8)}...`);
+          } else {
+            console.log(`⚠️  Target peer ${messageData.targetPeerId?.substring(0, 8)}... not found on this node either`);
+          }
+        }
+      } catch (error) {
+        console.log(`❌ Error processing mesh message: ${error.message}`);
+      }
+    });
+    
+    console.log('🎯 Mesh signal routing handler configured');
     
     // Announce this node as a bootstrap peer for others
     try {
