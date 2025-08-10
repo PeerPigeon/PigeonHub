@@ -71,12 +71,12 @@ deploy_heroku() {
     cd $TEMP_DIR
     
     # Copy the main server.js and supporting files
-    cp "$ORIGINAL_DIR/server.js" ./server.js
-    cp "$ORIGINAL_DIR/deploy/heroku-package.json" ./package.json
-    cp "$ORIGINAL_DIR/deploy/Procfile" ./Procfile
+    cp "$ORIGINAL_DIR/../server.js" ./server.js
+    cp "$ORIGINAL_DIR/heroku-package.json" ./package.json
+    cp "$ORIGINAL_DIR/Procfile" ./Procfile
     
     # Copy the src directory for PeerPigeon dependencies
-    cp -r "$ORIGINAL_DIR/src" ./src
+    cp -r "$ORIGINAL_DIR/../src" ./src
     
     # Initialize git repo with automation
     git init -q
@@ -91,11 +91,11 @@ deploy_heroku() {
     heroku create $APP_NAME --region us --json > /dev/null
     
     # Set environment variables (batch mode)
-    heroku config:set 
-        APP_ID="$APP_ID" 
-        REGION="$REGION" 
-        MAX_PEERS="$MAX_PEERS" 
-        NODE_ENV="production" 
+    heroku config:set \
+        APP_ID="$APP_ID" \
+        REGION="$REGION" \
+        MAX_PEERS="$MAX_PEERS" \
+        NODE_ENV="production" \
         --app $APP_NAME > /dev/null
     
     # Deploy with quiet mode
@@ -123,12 +123,12 @@ deploy_fly() {
     cd $TEMP_DIR
     
     # Copy necessary files
-    cp "$ORIGINAL_DIR/server.js" ./server.js
-    cp "$ORIGINAL_DIR/package.json" ./package.json
-    cp "$ORIGINAL_DIR/deploy/fly.toml" ./fly.toml
+    cp "$ORIGINAL_DIR/../server.js" ./server.js
+    cp "$ORIGINAL_DIR/../package.json" ./package.json
+    cp "$ORIGINAL_DIR/fly.toml" ./fly.toml
     
     # Copy the src directory for PeerPigeon dependencies
-    cp -r "$ORIGINAL_DIR/src" ./src
+    cp -r "$ORIGINAL_DIR/../src" ./src
     
     # Create Dockerfile for Fly.io
     cat > Dockerfile << EOF

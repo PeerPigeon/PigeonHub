@@ -7,7 +7,7 @@ app = 'pigeonhub'
 primary_region = 'iad'
 
 [build]
-  builder = 'heroku/buildpacks:20'
+  dockerfile = "Dockerfile"
 
 [env]
   APP_ID = 'GLOBAL-PEERPIGEON-HUB'

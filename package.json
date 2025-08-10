@@ -20,10 +20,10 @@
     "example-publish": "node examples/node-publish.mjs",
     "example-find": "node examples/node-find.mjs",
     "deploy": "./deploy/deploy-all.sh",
-    "local:node1": "node local-node.mjs 3000 node-alpha",
-    "local:node2": "node local-node.mjs 3001 node-beta",
-    "local:node3": "node local-node.mjs 3002 node-gamma",
-    "local:node4": "node local-node.mjs 3003 node-delta",
+    "local:node1": "node server.js 3000 node-alpha",
+    "local:node2": "node server.js 3001 node-beta",
+    "local:node3": "node server.js 3002 node-gamma",
+    "local:node4": "node server.js 3003 node-delta",
     "local:test": "node test-local.mjs"
   },
   "dependencies": {
