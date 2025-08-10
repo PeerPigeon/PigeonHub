@@ -5,6 +5,12 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import fetch from 'node-fetch';
+import crypto from 'crypto';
+
+// Make crypto available globally for PeerPigeon
+if (!globalThis.crypto) {
+  globalThis.crypto = crypto.webcrypto || crypto;
+}
 
 // Get port from environment variables or command line argument or use default
 const port = parseInt(process.env.PORT) || parseInt(process.argv[2]) || 8080;
@@ -893,12 +899,6 @@ async function bootstrap() {
         if (messageData.messageType === 'pigeonhub-signal-route') {
           console.log(`📨 Received mesh signal routing request for ${messageData.signalType} to peer ${messageData.targetPeerId?.substring(0, 8)}...`);
           
-          // Don't process messages we sent ourselves
-          if (messageData.routingNode === nodeId) {
-            console.log(`⏭️  Ignoring own routing message`);
-            return;
-          }
-          
           // Try to find the target peer locally
           const success = sendToSpecificPeer(messageData.targetPeerId, {
             type: messageData.signalType,
@@ -910,7 +910,7 @@ async function bootstrap() {
           if (success) {
             console.log(`✅ Successfully routed mesh ${messageData.signalType} to local peer ${messageData.targetPeerId?.substring(0, 8)}...`);
           } else {
-            console.log(`⚠️  Target peer ${messageData.targetPeerId?.substring(0, 8)}... not found on this node either`);
+            console.log(`⚠️  Target peer ${messageData.targetPeerId?.substring(0, 8)}... not found on this node`);
           }
         } else {
           console.log(`🔄 Ignoring non-routing mesh message:`, messageData?.messageType || 'unknown');
