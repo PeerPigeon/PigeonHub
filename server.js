@@ -802,13 +802,17 @@ async function bootstrap() {
     // Create mesh node as bootstrap (both nodes are independent bootstrap nodes)
     mesh = new PeerPigeonMesh({
       enableWebDHT: true, // Enable internal DHT within the mesh
-      nodeId: nodeId,
-      bootstrap: true // This node acts as bootstrap - peers will connect through mesh discovery
+      nodeId: nodeId
     });
     
     // Initialize the mesh
     await mesh.init();
-    console.log('✅ PeerPigeon mesh initialized as bootstrap node');
+    console.log('✅ PeerPigeon mesh initialized');
+    
+    // Connect to Fly.io server as mesh peer
+    console.log('🔗 Connecting to Fly.io mesh bootstrap...');
+    await mesh.connectToPeer('wss://pigeonhub.fly.dev');
+    console.log('✅ Connected to Fly.io mesh bootstrap');
     
     // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
     console.log('� Relying on PeerPigeon mesh discovery for inter-node connections...');
