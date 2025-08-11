@@ -878,9 +878,9 @@ async function bootstrap() {
     console.log('✅ PeerPigeon mesh initialized');
     
     // Connect to Fly.io server as mesh peer
-    console.log('🔗 Connecting to Fly.io hub as PeerPigeon mesh peer...');
-    await mesh.connectToPeer('wss://pigeonhub.fly.dev');
-    console.log('✅ Connected to Fly.io hub via PeerPigeon mesh');
+    console.log('🔗 Heroku hub ready - relying on PeerPigeon discovery');
+    // Heroku hub ready - no manual mesh connections
+    console.log('✅ Mesh ready - waiting for peer discovery');
     
     // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
     console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
