@@ -878,20 +878,10 @@ async function bootstrap() {
     console.log('✅ PeerPigeon mesh initialized');
     
     // Connect to Fly.io server as mesh peer
-    console.log('🔗 Establishing mesh connection to Fly.io signaling server...');
-    const meshWs = new WebSocket('wss://pigeonhub.fly.dev');
-    
-    meshWs.on('open', () => {
-      console.log('✅ Mesh signaling connection established with Fly.io');
-      // Use Fly.io as signaling server for PeerPigeon mesh establishment
-      mesh.connectToPeer(meshWs);
-    });
-    
-    meshWs.on('error', (error) => {
-      console.log('⚠️ Mesh signaling connection error:', error.message);
-    });
-    
-    console.log('🎯 Heroku will use Fly.io as PeerPigeon mesh signaling server');
+    // Heroku mesh ready - will discover Fly.io mesh through PeerPigeon network
+    console.log('🔗 Heroku mesh initialized - waiting for Fly.io mesh discovery...');
+    console.log('🎯 PeerPigeon meshes will discover each other automatically');
+    console.log('💡 No manual connectToPeer needed - using peer discovery protocol');
     
     // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
     console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
