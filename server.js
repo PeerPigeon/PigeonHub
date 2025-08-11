@@ -305,6 +305,24 @@ wss.on('connection', (ws, req) => {
             }));
           });
 
+          // Also send any stored remote peers from other nodes
+          for (const [remotePeerId, remotePeerData] of peerData.entries()) {
+            if (remotePeerData.remote && remotePeerId !== peerId) {
+              try {
+                ws.send(JSON.stringify({
+                  type: 'peer-discovered',
+                  data: remotePeerData,
+                  fromPeerId: 'system',
+                  targetPeerId: peerId,
+                  timestamp: Date.now()
+                }));
+                console.log(`📡 Notified new peer ${peerId.substring(0, 8)}... about remote peer ${remotePeerId.substring(0, 8)}... from ${remotePeerData.sourceNode}`);
+              } catch (error) {
+                console.error(`❌ Failed to notify about remote peer: ${error.message}`);
+              }
+            }
+          }
+
           // CROSS-NODE DISCOVERY: Tell other nodes about this peer
           const isProduction = process.env.NODE_ENV === 'production';
           const otherNodes = isProduction ? 
@@ -959,16 +977,30 @@ async function bootstrap() {
         } else if (messageData.type === 'peer-announcement') {
           console.log(`� Received peer announcement via PeerPigeon mesh from ${messageData.sourceNode}: peer ${messageData.peerId?.substring(0, 8)}...`);
           
+          // Store remote peer for future discovery even if no local peers currently
+          const remotePeerData = {
+            peerId: messageData.peerId,
+            name: messageData.name || 'unnamed',
+            sourceNode: messageData.sourceNode,
+            timestamp: messageData.timestamp || Date.now(),
+            remote: true // Mark as remote peer
+          };
+          
+          // Store in peerData for future discovery
+          peerData.set(messageData.peerId, remotePeerData);
+          console.log(`💾 Stored remote peer ${messageData.peerId?.substring(0, 8)}... from ${messageData.sourceNode}`);
+          
           // Notify all local peers about the remote peer
           let notifiedCount = 0;
           for (const [localPeerId, peerConnection] of connections.entries()) {
             if (localPeerId !== messageData.peerId && peerConnection && peerConnection.readyState === WebSocket.OPEN) {
               try {
                 peerConnection.send(JSON.stringify({
-                  type: 'peer-announced',
-                  peerId: messageData.peerId,
-                  name: messageData.name || 'unnamed',
-                  sourceNode: messageData.sourceNode
+                  type: 'peer-discovered',
+                  data: remotePeerData,
+                  fromPeerId: 'system',
+                  targetPeerId: localPeerId,
+                  timestamp: Date.now()
                 }));
                 notifiedCount++;
                 console.log(`✅ Notified local peer ${localPeerId.substring(0, 8)}... about remote peer from ${messageData.sourceNode}`);
@@ -977,7 +1009,7 @@ async function bootstrap() {
               }
             }
           }
-          console.log(`📊 Notified ${notifiedCount} local peers about remote peer announcement`);
+          console.log(`📊 Notified ${notifiedCount} local peers, stored remote peer for future discovery`);
         } else {
           console.log(`🔄 Ignoring unknown mesh message type:`, messageData?.type || messageData?.messageType || 'unknown');
         }
