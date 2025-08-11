@@ -772,10 +772,10 @@ async function bootstrap() {
     console.log('🔗 Loading PeerPigeon modules...');
     const { SignalDirectory, PeerPigeonDhtAdapter } = await import('./src/index.js');
     
-    console.log('🌱 Starting PeerPigeon mesh as standalone bootstrap...');
+    console.log('🌱 Fly.io hub starting as PeerPigeon mesh endpoint...');
     
-    // Fly.io server acts as standalone bootstrap - no seeds needed
-    console.log(`📡 This Fly.io server will act as standalone mesh bootstrap`);
+    // Fly.io server acts as mesh endpoint - Heroku will connect to it
+    console.log(`📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer`);
     console.log(`🆔 This node ID: ${nodeId}`);
     
     // Import PeerPigeon directly and create mesh as bootstrap root
@@ -787,26 +787,27 @@ async function bootstrap() {
       throw new Error(`Failed to import peerpigeon: ${error.message}`);
     }
     
-    // Create mesh directly as bootstrap node (no external seeds required)
+    // Create mesh node that Heroku will connect to
     mesh = new PeerPigeonMesh({
       enableWebDHT: true,
       timeout: 15000,
       maxPeers: 50,
-      nodeId: nodeId,
-      bootstrap: true // This node acts as bootstrap root
+      nodeId: nodeId
     });
     
-    // Initialize the mesh as bootstrap
+    // Initialize the mesh endpoint
     await mesh.init();
-    console.log('✅ Standalone mesh bootstrap initialized');
+    console.log('✅ Fly.io mesh endpoint initialized');
+    
+    console.log('🎯 Waiting for Heroku hub to connect via PeerPigeon mesh...');
     
     // Create DHT adapter directly
     dht = new PeerPigeonDhtAdapter({ mesh });
     signalDir = new SignalDirectory(dht);
     connectedToMesh = true;
     
-    console.log('✅ DHT mesh connected and ready');
-    console.log(`🌐 Connected to distributed hash table`);
+    console.log('✅ Fly.io mesh endpoint ready for connections');
+    console.log(`🌐 Mesh DHT ready`);
     console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
