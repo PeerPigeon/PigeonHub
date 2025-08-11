@@ -143,6 +143,35 @@ setInterval(() => {
   }
 }, 30000); // Clean up every 30 seconds
 
+// WebSocket keepalive to prevent Heroku H15 idle timeouts
+setInterval(() => {
+  console.log(`💓 Sending keepalive pings to ${connections.size} connections...`);
+  let pingSent = 0;
+  
+  for (const [peerId, ws] of connections.entries()) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        // Send ping frame to keep connection alive
+        ws.ping();
+        
+        // Also send a keepalive message
+        ws.send(JSON.stringify({
+          type: 'keepalive',
+          timestamp: Date.now(),
+          nodeId
+        }));
+        
+        pingSent++;
+      } catch (error) {
+        console.log(`❌ Failed to ping ${peerId.substring(0, 8)}...: ${error.message}`);
+        cleanupPeer(peerId);
+      }
+    }
+  }
+  
+  console.log(`💓 Sent keepalive to ${pingSent} peers`);
+}, 30000); // Send keepalive every 30 seconds (well under Heroku's 55-second timeout)
+
 wss.on('connection', (ws, req) => {
   let peerId = null;
 
@@ -198,6 +227,16 @@ wss.on('connection', (ws, req) => {
     peerId,
     timestamp: Date.now()
   }));
+
+  // Handle WebSocket ping/pong for keepalive
+  ws.on('ping', (data) => {
+    ws.pong(data);
+  });
+
+  ws.on('pong', (data) => {
+    // Update last pong time for connection health tracking
+    ws.lastPong = Date.now();
+  });
 
   // Handle incoming messages
   ws.on('message', (data) => {
@@ -312,6 +351,17 @@ wss.on('connection', (ws, req) => {
         case 'goodbye': {
           // Handle peer disconnect
           peerData.delete(peerId);
+          break;
+        }
+
+        case 'keepalive': {
+          // Handle keepalive message - just respond to keep connection active
+          console.log(`💓 Keepalive from ${peerId.substring(0, 8)}...`);
+          ws.send(JSON.stringify({
+            type: 'keepalive-ack',
+            timestamp: Date.now(),
+            nodeId
+          }));
           break;
         }
 
