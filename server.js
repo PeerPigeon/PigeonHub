@@ -867,10 +867,11 @@ async function bootstrap() {
       throw new Error(`Failed to import peerpigeon: ${error.message}`);
     }
     
-    // Create mesh node that will connect to Fly.io hub
+    // Create mesh node that connects to Fly.io as signaling server
     mesh = new PeerPigeonMesh({
       enableWebDHT: true,
-      nodeId: nodeId
+      nodeId: nodeId,
+      signalingServer: 'wss://pigeonhub.fly.dev'  // Heroku uses Fly.io as signaling server
     });
     
     // Initialize the mesh
@@ -878,10 +879,10 @@ async function bootstrap() {
     console.log('✅ PeerPigeon mesh initialized');
     
     // Connect to Fly.io server as mesh peer
-    // Heroku mesh ready - will discover Fly.io mesh through PeerPigeon network
-    console.log('🔗 Heroku mesh initialized - waiting for Fly.io mesh discovery...');
-    console.log('🎯 PeerPigeon meshes will discover each other automatically');
-    console.log('💡 No manual connectToPeer needed - using peer discovery protocol');
+    // Heroku mesh connects to Fly.io signaling server
+    console.log('🔗 Heroku connecting to Fly.io as PeerPigeon signaling server...');
+    console.log('🎯 Fly.io will act as signaling server for both nodes');
+    console.log('💡 Both nodes will join the same PeerPigeon mesh');
     
     // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
     console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
