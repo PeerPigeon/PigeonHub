@@ -852,7 +852,7 @@ async function bootstrap() {
   
   try {
     console.log('🔗 Loading PeerPigeon modules...');
-    const { PeerPigeonMesh } = await import('./src/index.js');
+    const { PeerPigeonMesh } = await import('peerpigeon');
     
     console.log('🌱 Heroku hub starting as PeerPigeon mesh node...');
     console.log('📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer');
