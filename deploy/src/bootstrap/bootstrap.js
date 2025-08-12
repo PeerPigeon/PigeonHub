@@ -64,7 +64,7 @@ export async function bootstrapPeerPigeon({
     console.log(`Trying to connect to seed: ${seed.u}`);
     
     try {
-      if (seed.t === 'ws') {
+      if (seed.t === 'ws' || seed.t === 'wss') {
         await mesh.connectToPeer(seed.u);
       } else {
         console.warn(`Unsupported seed transport type: ${seed.t}`);

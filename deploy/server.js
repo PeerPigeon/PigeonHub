@@ -838,42 +838,31 @@ async function bootstrap() {
   
   try {
     console.log('🔗 Loading PeerPigeon modules...');
-    const { SignalDirectory, PeerPigeonDhtAdapter } = await import('./src/index.js');
+    const { PeerPigeonMesh } = await import('./src/index.js');
     
-    console.log('🌱 Fly.io hub starting as PeerPigeon mesh endpoint...');
-    
-    // Fly.io server acts as mesh endpoint - Heroku will connect to it
-    console.log(`📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer`);
+    console.log('🌱 Fly.io hub starting as PeerPigeon mesh bootstrap node...');
+    console.log('📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer');
     console.log(`🆔 This node ID: ${nodeId}`);
     
-    // Import PeerPigeon directly and create mesh as bootstrap root
-    let PeerPigeonMesh;
-    try {
-      const peerpigeon = await import('peerpigeon');
-      PeerPigeonMesh = peerpigeon.default || peerpigeon.PeerPigeonMesh || peerpigeon;
-    } catch (error) {
-      throw new Error(`Failed to import peerpigeon: ${error.message}`);
-    }
-    
-    // Create mesh node that acts as signaling server for itself and Heroku
+    // Create Fly.io as the PRIMARY mesh node
+    // This node uses ITSELF as the signaling server to create the mesh
     mesh = new PeerPigeonMesh({
+      peerId: nodeId,
       enableWebDHT: true,
-      timeout: 15000,
       maxPeers: 50,
-      nodeId: nodeId,
-      signalingServer: 'wss://pigeonhub.fly.dev'  // Fly.io uses itself as signaling server
+      minPeers: 1,
+      autoDiscovery: true
     });
     
-    // Initialize the mesh endpoint
     await mesh.init();
-    console.log('✅ Fly.io mesh endpoint initialized');
+    console.log('✅ Fly.io mesh initialized');
     
-    console.log('🎯 Fly.io acting as PeerPigeon signaling server for Heroku and itself');
-    console.log('🔗 Waiting for Heroku to connect via PeerPigeon mesh...');
+    // Connect to self as signaling server to bootstrap the mesh
+    await mesh.connect(`ws://localhost:${port}`);
+    console.log('✅ Fly.io mesh bootstrap completed - ready for Heroku connections');
     
-    // Create DHT adapter directly
-    dht = new PeerPigeonDhtAdapter({ mesh });
-    signalDir = new SignalDirectory(dht);
+    dht = mesh; // Use mesh for DHT operations
+    signalDir = { put: mesh.dhtPut.bind(mesh), get: mesh.dhtGet.bind(mesh) };
     connectedToMesh = true;
     
     console.log('✅ Fly.io mesh endpoint ready for connections');
@@ -881,9 +870,15 @@ async function bootstrap() {
     console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
-    // Don't use WebSocket connections for mesh discovery - they create circular deps
-    // The PeerPigeon DHT should discover peers automatically through bootstrap
-    console.log('� Relying on DHT bootstrap for mesh peer discovery...');
+    // Log mesh peer connections periodically
+    setInterval(() => {
+      const peerCount = mesh.getConnectedPeerCount();
+      console.log(`📊 Mesh status: ${peerCount} connected peers`);
+      if (peerCount > 0) {
+        const peerIds = mesh.getConnectedPeerIds();
+        console.log(`🔗 Mesh peers: ${peerIds.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
+      }
+    }, 30000);
     
     // Log mesh peer connections periodically
     setInterval(() => {
