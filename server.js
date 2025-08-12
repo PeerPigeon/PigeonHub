@@ -891,15 +891,9 @@ async function bootstrap() {
     console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
     console.log('� Relying on PeerPigeon mesh discovery for inter-node connections...');
     
-    // WebDHT is now available inside the mesh
-    if (mesh.webDHT) {
-      console.log('✅ Internal WebDHT ready');
-      dht = new PeerPigeonDhtAdapter({ mesh });
-      dht = mesh.webDHT;
-      signalDir = new SignalDirectory(dht);
-    } else {
-      console.log('⚠️  WebDHT not available in mesh');
-    }
+    // DHT is available directly on the mesh
+    dht = mesh; // Use mesh.dhtPut() and mesh.dhtGet() directly
+    console.log('✅ DHT ready via mesh API');
     
     connectedToMesh = true;
     
