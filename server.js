@@ -875,34 +875,15 @@ async function bootstrap() {
     console.log('✅ Connected to Fly.io signaling server');
     
     dht = mesh; // Use mesh for DHT operations
-    connectedToMesh = true;    // Create PeerPigeon instance for Heroku
-    // Use Fly.io as the signaling server
-    mesh = new PeerPigeon({
-      signalingServerUrl: 'wss://pigeonhub.fly.dev',
-      enableWebDHT: true,
-      timeout: 15000,
-      maxPeers: 50,
-      nodeId: nodeId
-    });
+    connectedToMesh = true;
     
-    // Initialize the mesh
-    await mesh.init();
-    console.log('✅ PeerPigeon mesh initialized');
+    console.log('✅ Mesh connected and ready');
+    console.log(`🌐 Connected to PeerPigeon mesh`);
+    console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
+    console.log(`� This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
-    // Connect to Fly.io server as mesh peer
-    // Heroku mesh connects to Fly.io signaling server
-    console.log('🔗 Heroku connecting to Fly.io as PeerPigeon signaling server...');
-    console.log('🎯 Fly.io will act as signaling server for both nodes');
-    console.log('💡 Both nodes will join the same PeerPigeon mesh');
-    
-    // Join the mesh - this will use Fly.io as signaling server
-    await mesh.joinMesh();
-    console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
-    console.log('� Relying on PeerPigeon mesh discovery for inter-node connections...');
-    
-    // WebDHT is now available inside the mesh
-    if (mesh.webDHT) {
-      console.log('✅ Internal WebDHT ready');
+    // Set up health monitoring to detect disconnections and retry
+    startMeshHealthMonitor();
     console.log('🎯 Fly.io will act as signaling server for both nodes');
     console.log('💡 Both nodes will join the same PeerPigeon mesh');
     
