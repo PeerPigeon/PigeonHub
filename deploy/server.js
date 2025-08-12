@@ -5,12 +5,6 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import fetch from 'node-fetch';
-import crypto from 'crypto';
-
-// Make crypto available globally for PeerPigeon
-if (!globalThis.crypto) {
-  globalThis.crypto = crypto.webcrypto || crypto;
-}
 
 // Get port from environment variables or command line argument or use default
 const port = parseInt(process.env.PORT) || parseInt(process.argv[2]) || 8080;
@@ -507,6 +501,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Initialize state
+let signalDir = null;
 let dht = null;
 let mesh = null;
 let isBootstrapping = false;
@@ -526,7 +521,7 @@ app.get('/health', (req, res) => {
     connected: connectedToMesh,
     isBootstrapping,
     dhtReady: !!dht,
-    meshReady: !!mesh,
+    signalDirReady: !!signalDir,
     timestamp: new Date().toISOString()
   });
   console.log(`✅ Health response sent`);
@@ -621,6 +616,44 @@ app.get('/generate-peer-id', async (req, res) => {
   }
 });
 
+// Accept signal routing from other nodes
+app.post('/api/route-signal', (req, res) => {
+  const { type, data, fromPeerId, targetPeerId, routingNode } = req.body;
+  
+  console.log(`🌐 Cross-node routing request: ${type} from ${routingNode} (${fromPeerId?.substring(0, 8)}...) to ${targetPeerId?.substring(0, 8) || 'unknown'}`);
+  
+  if (!targetPeerId || !type) {
+    console.log(`❌ Invalid routing request: missing targetPeerId or type`);
+    return res.status(400).json({ error: 'targetPeerId and type required' });
+  }
+  
+  // Check if target peer is connected to this node
+  const isTargetConnected = connections.has(targetPeerId);
+  console.log(`🔍 Target peer ${targetPeerId.substring(0, 8)}... ${isTargetConnected ? 'IS' : 'NOT'} connected to ${nodeId}`);
+  
+  // Try to route to the target peer if connected to this node
+  const success = sendToConnection(targetPeerId, {
+    type,
+    data,
+    fromPeerId,
+    targetPeerId,
+    timestamp: Date.now()
+  });
+  
+  if (success) {
+    console.log(`✅ Cross-node routed ${type} to ${targetPeerId.substring(0, 8)}... on ${nodeId}`);
+  } else {
+    console.log(`❌ Failed to route ${type} to ${targetPeerId.substring(0, 8)}... on ${nodeId}`);
+  }
+  
+  res.json({
+    routed: success,
+    nodeId,
+    targetFound: connections.has(targetPeerId),
+    connectionCount: connections.size
+  });
+});
+
 // Accept peer announcements from other nodes
 // REMOVED: HTTP announce-peer endpoint - using PeerPigeon mesh only
 
@@ -679,28 +712,10 @@ app.post('/api/publish', async (req, res) => {
     }
     
     // Replicate to other nodes via HTTP
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.PORT || port === 8080;
-    
-    let otherNodeUrls = [];
-    if (isProduction) {
-      // Production: Route to actual deployed services
-      otherNodeUrls = [
-        'https://pigeonhub-server-3c044110c06f.herokuapp.com',
-        'https://pigeonhub.fly.dev'
-      ].filter(url => {
-        // Don't replicate to ourselves
-        const currentUrl = process.env.PORT ? 'https://pigeonhub-server-3c044110c06f.herokuapp.com' : 'https://pigeonhub.fly.dev';
-        return url !== currentUrl;
-      });
-    } else {
-      // Development: Use localhost ports
-      const otherPorts = [3000, 3001, 3002, 3003].filter(p => p !== port);
-      otherNodeUrls = otherPorts.map(p => `http://127.0.0.1:${p}`);
-    }
-    
+    const otherPorts = [3000, 3001, 3002, 3003].filter(p => p !== port);
     let replicationCount = 0;
     
-    for (const nodeUrl of otherNodeUrls) {
+    for (const otherPort of otherPorts) {
       try {
         const replicationPayload = {
           topic,
@@ -710,9 +725,9 @@ app.post('/api/publish', async (req, res) => {
         };
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // Longer timeout for production
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         
-        const response = await fetch(`${nodeUrl}/api/replicate`, {
+        const response = await fetch(`http://127.0.0.1:${otherPort}/api/replicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(replicationPayload),
@@ -723,10 +738,10 @@ app.post('/api/publish', async (req, res) => {
         
         if (response.ok) {
           replicationCount++;
-          console.log(`✅ Replicated to ${nodeUrl}`);
+          console.log(`✅ Replicated to port ${otherPort}`);
         }
       } catch (error) {
-        console.log(`⚠️ Replication to ${nodeUrl} failed: ${error.message}`);
+        console.log(`⚠️ Replication to port ${otherPort} failed: ${error.message}`);
       }
     }
     
@@ -737,7 +752,7 @@ app.post('/api/publish', async (req, res) => {
       nodeId,
       method: 'http-replication',
       replicatedTo: replicationCount,
-      totalNodes: otherNodeUrls.length + 1
+      totalNodes: otherPorts.length + 1
     });
     
   } catch (error) {
@@ -830,7 +845,7 @@ app.get('/api/find/:topic', async (req, res) => {
   }
 });
 
-// Bootstrap DHT with simple single-server architecture
+// Bootstrap by connecting to Fly.io as a PeerPigeon peer
 async function bootstrap() {
   if (isBootstrapping) return;
   isBootstrapping = true;
@@ -839,12 +854,11 @@ async function bootstrap() {
     console.log('🔗 Loading PeerPigeon modules...');
     const { PeerPigeonMesh } = await import('peerpigeon');
     
-    console.log('🌱 Fly.io hub starting as PeerPigeon mesh bootstrap node...');
+    console.log('🌱 Heroku hub starting as PeerPigeon mesh node...');
     console.log('📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer');
     console.log(`🆔 This node ID: ${nodeId}`);
     
-    // Create Fly.io as the PRIMARY mesh node
-    // This node uses ITSELF as the signaling server to create the mesh
+    // Create Heroku mesh node that connects to Fly.io signaling server
     mesh = new PeerPigeonMesh({
       peerId: nodeId,
       enableWebDHT: true,
@@ -854,29 +868,42 @@ async function bootstrap() {
     });
     
     await mesh.init();
-    console.log('✅ Fly.io mesh initialized');
+    console.log('✅ Heroku mesh initialized');
     
-    // Connect to self as signaling server to bootstrap the mesh
-    await mesh.connect(`ws://localhost:${port}`);
-    console.log('✅ Fly.io mesh bootstrap completed - ready for Heroku connections');
+    // Connect to Fly.io signaling server to join the mesh
+    await mesh.connect('wss://pigeonhub.fly.dev');
+    console.log('✅ Connected to Fly.io signaling server');
     
-    dht = mesh; // Use mesh for DHT operations directly
+    dht = mesh; // Use mesh for DHT operations
     connectedToMesh = true;
     
-    console.log('✅ Fly.io mesh endpoint ready for connections');
-    console.log(`🌐 Mesh DHT ready`);
+    console.log('✅ Mesh connected and ready');
+    console.log(`🌐 Connected to PeerPigeon mesh`);
+    console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
+    console.log(`� This node mesh ID: ${mesh.nodeId || 'unknown'}`);
+    
+    // Set up health monitoring to detect disconnections and retry
+    startMeshHealthMonitor();
+    console.log('🎯 Fly.io will act as signaling server for both nodes');
+    console.log('💡 Both nodes will join the same PeerPigeon mesh');
+    
+    // No manual connectToPeer - let PeerPigeon discovery handle mesh connections
+    console.log('🎯 Mesh connection established: Heroku ↔ Fly.io');
+    console.log('� Relying on PeerPigeon mesh discovery for inter-node connections...');
+    
+    // DHT is available directly on the mesh
+    dht = mesh; // Use mesh.dhtPut() and mesh.dhtGet() directly
+    console.log('✅ DHT ready via mesh API');
+    
+    connectedToMesh = true;
+    
+    console.log('✅ Mesh connected and ready');
+    console.log(`🌐 Connected to PeerPigeon mesh`);
     console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
     
-    // Log mesh peer connections periodically
-    setInterval(() => {
-      const peerCount = mesh.getConnectedPeerCount();
-      console.log(`📊 Mesh status: ${peerCount} connected peers`);
-      if (peerCount > 0) {
-        const peerIds = mesh.getConnectedPeerIds();
-        console.log(`🔗 Mesh peers: ${peerIds.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
-      }
-    }, 30000);
+    // Set up health monitoring to detect disconnections and retry
+    startMeshHealthMonitor();
     
     // Set up mesh message handler for cross-node signal routing
     mesh.addEventListener('messageReceived', (messageEvent) => {
@@ -968,89 +995,93 @@ async function bootstrap() {
     
     console.log('🎯 Mesh signal routing handler configured');
     
-    // Announce this node as a bootstrap peer for others
-    try {
-      // Create bootstrap peer record
-      const bootstrapRecord = {
-        nodeId,
-        port,
-        url: `ws://localhost:${port}`,
-        publicUrl: process.env.PUBLIC_URL || `ws://localhost:${port}`,
-        capabilities: ['signaling', 'dht', 'replication'],
-        region: process.env.REGION || 'local',
-        priority: 5,
-        timestamp: Date.now(),
-        ttl: 3600 // Announce for 1 hour
-      };
-      
-      // Import crypto utilities for hashing
-      const { sha1, cborEncode } = await import('./src/util/crypto.js');
-      
-      // Create key for bootstrap peer announcement
-      const keyString = `bootstrap-peer-${nodeId}`;
-      const keyBytes = await sha1(new TextEncoder().encode(keyString));
-      
-      // Encode record as CBOR
-      const recordBytes = await cborEncode(bootstrapRecord);
-      
-      // Store directly in DHT
-      await dht.put(keyBytes, recordBytes);
-      
-      console.log(`📢 Announced as bootstrap peer: ${nodeId}`);
-    } catch (error) {
-      console.log(`⚠️  Could not announce as bootstrap peer: ${error.message}`);
-    }
-    
   } catch (error) {
     console.log(`❌ Bootstrap failed: ${error.message}`);
-    console.log(`🔄 Will retry connecting to bootstrap peers...`);
+    console.log(`🔄 Will retry connecting to Fly.io...`);
     
-    // Fallback: Try to connect via HTTP to other nodes for peer discovery
-    try {
-      await discoverPeersViaHttp();
-    } catch (fallbackError) {
-      console.log(`❌ Fallback peer discovery also failed: ${fallbackError.message}`);
-    }
+    // Schedule retry of bootstrap process
+    scheduleBootstrapRetry();
   } finally {
     isBootstrapping = false;
   }
+}
+
+// Retry bootstrap connection with exponential backoff
+let bootstrapRetryCount = 0;
+const maxBootstrapRetries = 10;
+let bootstrapRetryTimeout = null;
+
+function scheduleBootstrapRetry() {
+  if (bootstrapRetryCount >= maxBootstrapRetries) {
+    console.log(`❌ Maximum bootstrap retries (${maxBootstrapRetries}) reached. Giving up.`);
+    return;
+  }
+  
+  // Don't schedule if already connected
+  if (connectedToMesh && mesh && mesh.getConnectedPeerCount() > 0) {
+    console.log(`✅ Already connected to mesh, canceling retry`);
+    bootstrapRetryCount = 0; // Reset counter on success
+    return;
+  }
+  
+  bootstrapRetryCount++;
+  const retryDelay = Math.min(1000 * Math.pow(2, bootstrapRetryCount - 1), 30000); // Exponential backoff, max 30s
+  
+  console.log(`🔄 Scheduling bootstrap retry #${bootstrapRetryCount} in ${retryDelay}ms...`);
+  
+  bootstrapRetryTimeout = setTimeout(() => {
+    console.log(`🔄 Attempting bootstrap retry #${bootstrapRetryCount}/${maxBootstrapRetries}...`);
+    bootstrap();
+  }, retryDelay);
+}
+
+// Monitor mesh connection health and retry if needed
+function startMeshHealthMonitor() {
+  setInterval(() => {
+    if (!connectedToMesh || !mesh) {
+      console.log(`⚠️ Mesh not connected, scheduling retry...`);
+      scheduleBootstrapRetry();
+      return;
+    }
+    
+    const peerCount = mesh.getConnectedPeerCount();
+    if (peerCount === 0) {
+      console.log(`⚠️ Mesh connected but 0 peers, scheduling retry...`);
+      // Reset connection status to trigger retry
+      connectedToMesh = false;
+      scheduleBootstrapRetry();
+    } else {
+      // Reset retry counter on successful connection
+      if (bootstrapRetryCount > 0) {
+        console.log(`✅ Mesh connection healthy, resetting retry counter`);
+        bootstrapRetryCount = 0;
+        if (bootstrapRetryTimeout) {
+          clearTimeout(bootstrapRetryTimeout);
+          bootstrapRetryTimeout = null;
+        }
+      }
+    }
+  }, 15000); // Check every 15 seconds
 }
 
 // Fallback peer discovery via HTTP when DHT bootstrap fails
 async function discoverPeersViaHttp() {
   console.log('🔍 Attempting HTTP-based peer discovery...');
   
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.PORT || port === 8080;
+  const localPorts = [3000, 3001, 3002, 3003].filter(p => p !== port);
   
-  let targetUrls = [];
-  if (isProduction) {
-    // Production: Check other deployed services
-    targetUrls = [
-      'https://pigeonhub-server-3c044110c06f.herokuapp.com',
-      'https://pigeonhub.fly.dev'
-    ].filter(url => {
-      // Don't check ourselves
-      const currentUrl = process.env.PORT ? 'https://pigeonhub-server-3c044110c06f.herokuapp.com' : 'https://pigeonhub.fly.dev';
-      return url !== currentUrl;
-    });
-  } else {
-    // Development: Use localhost ports
-    const localPorts = [3000, 3001, 3002, 3003].filter(p => p !== port);
-    targetUrls = localPorts.map(p => `http://localhost:${p}`);
-  }
-  
-  for (const targetUrl of targetUrls) {
+  for (const targetPort of localPorts) {
     try {
-      const response = await fetch(`${targetUrl}/health`, {
-        timeout: 3000 // Longer timeout for production
+      const response = await fetch(`http://localhost:${targetPort}/health`, {
+        timeout: 2000
       });
       
       if (response.ok) {
         const health = await response.json();
-        console.log(`✅ Found peer via HTTP: ${health.nodeId} on ${targetUrl}`);
+        console.log(`✅ Found peer via HTTP: ${health.nodeId} on port ${targetPort}`);
         
         // Add to known peers for cross-node communication
-        knownNodes.add(targetUrl);
+        knownNodes.add(`http://localhost:${targetPort}`);
       }
     } catch (error) {
       // Ignore connection errors - peer may not be running
@@ -1072,6 +1103,9 @@ server.listen(port, '0.0.0.0', () => {
   
   // Start DHT in background
   setTimeout(bootstrap, 500);
+  
+  // Start mesh health monitoring
+  setTimeout(startMeshHealthMonitor, 2000);
 });
 
 // Graceful shutdown
