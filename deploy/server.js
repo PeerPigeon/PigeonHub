@@ -507,7 +507,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Initialize state
-let signalDir = null;
 let dht = null;
 let mesh = null;
 let isBootstrapping = false;
@@ -527,7 +526,7 @@ app.get('/health', (req, res) => {
     connected: connectedToMesh,
     isBootstrapping,
     dhtReady: !!dht,
-    signalDirReady: !!signalDir,
+    meshReady: !!mesh,
     timestamp: new Date().toISOString()
   });
   console.log(`✅ Health response sent`);
@@ -838,7 +837,7 @@ async function bootstrap() {
   
   try {
     console.log('🔗 Loading PeerPigeon modules...');
-    const { PeerPigeonMesh } = await import('./src/index.js');
+    const { PeerPigeonMesh } = await import('peerpigeon');
     
     console.log('🌱 Fly.io hub starting as PeerPigeon mesh bootstrap node...');
     console.log('📡 Architecture: peer ↔ heroku hub ↔ [mesh] ↔ fly hub ↔ peer');
@@ -861,24 +860,13 @@ async function bootstrap() {
     await mesh.connect(`ws://localhost:${port}`);
     console.log('✅ Fly.io mesh bootstrap completed - ready for Heroku connections');
     
-    dht = mesh; // Use mesh for DHT operations
-    signalDir = { put: mesh.dhtPut.bind(mesh), get: mesh.dhtGet.bind(mesh) };
+    dht = mesh; // Use mesh for DHT operations directly
     connectedToMesh = true;
     
     console.log('✅ Fly.io mesh endpoint ready for connections');
     console.log(`🌐 Mesh DHT ready`);
     console.log(`🔗 Mesh peer count: ${mesh.getConnectedPeerCount()} peers`);
     console.log(`🆔 This node mesh ID: ${mesh.nodeId || 'unknown'}`);
-    
-    // Log mesh peer connections periodically
-    setInterval(() => {
-      const peerCount = mesh.getConnectedPeerCount();
-      console.log(`📊 Mesh status: ${peerCount} connected peers`);
-      if (peerCount > 0) {
-        const peerIds = mesh.getConnectedPeerIds();
-        console.log(`🔗 Mesh peers: ${peerIds.slice(0, 3).map(p => p.substring(0, 8) + '...').join(', ')}`);
-      }
-    }, 30000);
     
     // Log mesh peer connections periodically
     setInterval(() => {
