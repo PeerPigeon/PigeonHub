@@ -28,20 +28,30 @@ async function initializeWebRTC() {
     // Add timeout to prevent hanging on import
     const importPromise = Promise.all([
       import('ws'),
-      import('@koush/wrtc')
+      import('@koush/wrtc'),
+      import('crypto')
     ]);
     
     const timeoutPromise = new Promise((resolve, reject) => {
       setTimeout(() => reject(new Error('WebRTC import timeout')), 10000);
     });
     
-    const [WebSocket, wrtc] = await Promise.race([importPromise, timeoutPromise]);
+    const [WebSocket, wrtc, crypto] = await Promise.race([importPromise, timeoutPromise]);
     
     // Make WebRTC available globally for Node.js
     global.RTCPeerConnection = wrtc.default.RTCPeerConnection;
     global.RTCSessionDescription = wrtc.default.RTCSessionDescription;
     global.RTCIceCandidate = wrtc.default.RTCIceCandidate;
     global.WebSocket = WebSocket.default;
+    
+    // CRITICAL: Add crypto polyfill for PeerPigeon's UnSEA system
+    if (!global.crypto) {
+      global.crypto = {
+        getRandomValues: (array) => {
+          return crypto.default.randomFillSync(array);
+        }
+      };
+    }
     
     webrtcInitialized = true;
     return true;

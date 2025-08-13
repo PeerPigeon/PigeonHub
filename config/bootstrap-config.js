@@ -56,7 +56,7 @@ export const BOOTSTRAP_CONFIG = {
     minPeers: 0, // Same as CLI default
     autoDiscovery: true, // Enable auto discovery like CLI
     enableWebDHT: true, // Enable WebDHT like CLI
-    enableCrypto: false, // DISABLE crypto - PeerPigeon handles peer IDs
+    enableCrypto: true, // Enable PeerPigeon's UnSEA crypto system
     enableDistributedStorage: true
   },
 
