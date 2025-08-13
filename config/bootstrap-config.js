@@ -46,7 +46,7 @@ export const BOOTSTRAP_CONFIG = {
       port: process.env.PORT || 8080,
       host: '0.0.0.0',
       isSignalingServer: true,
-      connectsTo: 'wss://pigeonhub.fly.dev' // Secondary connects to primary on Fly.io
+      connectsTo: 'wss://pigeonhub-server-3c044110c06f.herokuapp.com' // Secondary is the Heroku server
     }
   ],
 
