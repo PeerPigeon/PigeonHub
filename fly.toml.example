@@ -1,0 +1,87 @@
+# Fly.io configuration for PigeonHub
+# Copy this file to fly.toml and customize for your deployment
+# Replace "your-app-name" with your actual Fly.io app name
+
+app = "your-app-name"
+primary_region = "iad"  # Change to your preferred region (iad, lax, fra, etc.)
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+# TCP service configuration for WebSocket connections
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["http", "tls"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 1000  # Adjust based on your needs
+    soft_limit = 800   # Adjust based on your needs
+
+  [[services.tcp_checks]]
+    grace_period = "10s"
+    interval = "15s"
+    restart_limit = 0
+    timeout = "2s"
+
+  [[services.http_checks]]
+    interval = "30s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    restart_limit = 0
+    timeout = "5s"
+    tls_skip_verify = false
+    headers = {}
+
+[deploy]
+  release_command = "echo 'Deploying PigeonHub...'"
+
+# VM configuration - adjust based on your traffic needs
+[[vm]]
+  cpu_kind = "shared"    # Options: shared, performance
+  cpus = 1               # Number of CPUs
+  memory_mb = 512        # Memory in MB (256, 512, 1024, etc.)
+
+# Optional: Environment-specific settings
+# [env.production]
+#   LOG_LEVEL = "info"
+#
+# [env.staging]
+#   LOG_LEVEL = "debug"
+
+# Optional: Multiple regions for global deployment
+# regions = ["iad", "lax", "fra"]
+
+# Optional: Scaling configuration
+# [scaling]
+#   min_machines_running = 1
+#   max_machines_running = 10

@@ -1,0 +1,9 @@
+build:
+  languages:
+    - nodejs
+setup:
+  config:
+    NODE_ENV: production
+    NPM_CONFIG_PRODUCTION: true
+run:
+  web: node bootstrap-node.js bootstrap-cloud-secondary --port=$PORT

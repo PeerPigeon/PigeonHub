@@ -1,0 +1,32 @@
+{
+  "name": "PigeonHub Bootstrap Secondary",
+  "description": "Secondary bootstrap node for PigeonHub decentralized mesh network",
+  "repository": "https://github.com/draeder/pigeonhub",
+  "logo": "https://via.placeholder.com/200x200.png?text=PigeonHub",
+  "keywords": ["webrtc", "p2p", "mesh", "decentralized", "bootstrap"],
+  "stack": "heroku-22",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "NPM_CONFIG_PRODUCTION": {
+      "description": "Skip dev dependencies",
+      "value": "true"
+    }
+  },
+  "scripts": {
+    "postdeploy": "echo 'PigeonHub Bootstrap Secondary deployed successfully!'"
+  }
+}

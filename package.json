@@ -1,54 +1,53 @@
 {
   "name": "pigeonhub",
-  "version": "0.0.2",
+  "version": "1.0.0",
+  "description": "PigeonHub - Decentralized mesh network with WebSocket signaling and PeerPigeon bootstrap nodes",
   "type": "module",
-  "description": "A production-ready, distributed WebRTC signaling mesh with whack-a-mole resilience",
-  "main": "src/index.js",
-  "files": [
-    "src/",
-    "cli/",
-    "examples/",
-    "server.js",
-    "README.md",
-    "LICENSE"
-  ],
-  "bin": {
-    "pp-sig": "./cli/pp-sig.mjs"
+  "main": "bootstrap-node.js",
+  "exports": {
+    ".": "./bootstrap-node.js",
+    "./modules/*": "./modules/*",
+    "./config/*": "./config/*"
   },
   "scripts": {
-    "start": "node server.js",
-    "example-publish": "node examples/node-publish.mjs",
-    "example-find": "node examples/node-find.mjs",
-    "deploy": "./deploy/deploy-all.sh",
-    "local:node1": "node server.js 3000 node-alpha",
-    "local:node2": "node server.js 3001 node-beta",
-    "local:node3": "node server.js 3002 node-gamma",
-    "local:node4": "node server.js 3003 node-delta",
-    "local:test": "node test-local.mjs"
-  },
-  "dependencies": {
-    "express": "^4.18.0",
-    "node-fetch": "^3.3.2",
-    "peerpigeon": "latest",
-    "ws": "^8.14.0"
+    "start": "node bootstrap-node.js --port=8080 --role=primary",
+    "start:bootstrap1": "node bootstrap-node.js --port=3001 --role=primary",
+    "start:bootstrap2": "node bootstrap-node.js --port=3002 --role=secondary", 
+    "start:dev": "concurrently \"npm run start:bootstrap1\" \"npm run start:bootstrap2\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "peer-to-peer",
+    "peerpigeon",
+    "websocket",
     "signaling",
-    "webrtc",
-    "dht",
-    "decentralized"
+    "peer-to-peer",
+    "mesh-network",
+    "decentralized",
+    "pigeonhub"
   ],
-  "author": "Daniel Raeder",
+  "author": "PigeonHub",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/draeder/pigeonhub.git"
+    "url": "https://github.com/draeder/pigeonhub.git"
   },
+  "homepage": "https://github.com/draeder/pigeonhub#readme",
   "bugs": {
     "url": "https://github.com/draeder/pigeonhub/issues"
   },
-  "homepage": "https://github.com/draeder/pigeonhub#readme",
+  "files": [
+    "bootstrap-node.js",
+    "modules/",
+    "config/",
+    "README.md"
+  ],
+  "dependencies": {
+    "peerpigeon": "git+https://github.com/draeder/peerpigeon.git",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
