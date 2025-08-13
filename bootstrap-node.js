@@ -196,13 +196,15 @@ class BootstrapNodeRunner {
           
           // Send a lightweight ping message to each connected bootstrap peer
           connectedPeers.forEach(peerId => {
-            mesh.sendDirectMessage(peerId, {
-              type: 'bootstrap-keepalive',
-              from: this.bootstrapNode.config.id,
-              timestamp: Date.now()
-            }).catch(error => {
+            try {
+              mesh.sendDirectMessage(peerId, {
+                type: 'bootstrap-keepalive',
+                from: this.bootstrapNode.config.id,
+                timestamp: Date.now()
+              });
+            } catch (error) {
               console.log(`⚠️  Keepalive ping failed to ${peerId.substring(0, 8)}...: ${error.message}`);
-            });
+            }
           });
         }
       } catch (error) {

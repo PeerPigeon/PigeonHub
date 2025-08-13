@@ -10,7 +10,7 @@
     "./config/*": "./config/*"
   },
   "scripts": {
-    "start": "node bootstrap-node.js --port=8080 --role=primary",
+    "start": "node bootstrap-node.js bootstrap-cloud-primary",
     "start:bootstrap1": "node bootstrap-node.js --port=3001 --role=primary",
     "start:bootstrap2": "node bootstrap-node.js --port=3002 --role=secondary", 
     "start:dev": "concurrently \"npm run start:bootstrap1\" \"npm run start:bootstrap2\"",
