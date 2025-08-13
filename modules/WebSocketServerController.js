@@ -8,6 +8,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { URL } from 'url';
+import { BOOTSTRAP_CONFIG } from '../config/bootstrap-config.js';
 
 export class WebSocketServerController {
   constructor(options = {}) {
@@ -264,6 +265,22 @@ export class WebSocketServerController {
           this.forceMeshNetworkRefresh();
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ message: 'Mesh refresh triggered' }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      } else if (req.url === '/bootstrap-servers' && req.method === 'GET') {
+        try {
+          const bootstrapServers = {
+            servers: BOOTSTRAP_CONFIG.PRODUCTION_BOOTSTRAP_SERVERS || [],
+            description: 'Available PigeonHub bootstrap servers for mesh network discovery'
+          };
+          
+          res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify(bootstrapServers, null, 2));
         } catch (error) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }));

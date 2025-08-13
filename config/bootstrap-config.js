@@ -58,7 +58,13 @@ export const BOOTSTRAP_CONFIG = {
     enableWebDHT: true, // Enable WebDHT like CLI
     enableCrypto: true, // Enable crypto like CLI
     enableDistributedStorage: true
-  }
+  },
+
+  // Production bootstrap servers that peers should discover
+  PRODUCTION_BOOTSTRAP_SERVERS: [
+    'wss://pigeonhub.fly.dev',
+    'wss://pigeonhub-server-3c044110c06f.herokuapp.com'
+  ]
 };
 
 // Helper function to get bootstrap node configuration by ID

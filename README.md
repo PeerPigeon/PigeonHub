@@ -27,6 +27,24 @@ npm run start:bootstrap2
 npm run start:dev
 ```
 
+## 🌐 Production Bootstrap Nodes
+
+PigeonHub maintains public bootstrap nodes for immediate network access:
+
+### Primary Bootstrap Node (Fly.io)
+- **WebSocket URL**: `wss://pigeonhub.fly.dev`
+- **HTTP Health Check**: `https://pigeonhub.fly.dev/health`
+- **Role**: Primary network entry point
+- **Location**: Global edge deployment
+
+### Secondary Bootstrap Node (Heroku)
+- **WebSocket URL**: `wss://pigeonhub-server-3c044110c06f.herokuapp.com`
+- **HTTP Health Check**: `https://pigeonhub-server-3c044110c06f.herokuapp.com/health`
+- **Role**: Network redundancy and load balancing
+- **Location**: US region
+
+These bootstrap nodes are interconnected and provide automatic failover. Connect to either endpoint to join the PigeonHub mesh network.
+
 ## 📦 Library Structure
 
 ```
