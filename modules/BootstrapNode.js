@@ -390,6 +390,33 @@ export class BootstrapNode {
    */
   requestSignalingRelay(targetPeerId, signalingMessage) {
     if (this.mesh) {
+      // ANTI-LOOP PROTECTION: Check if this message was recently relayed
+      const relayKey = `${targetPeerId}-${signalingMessage.type}-${signalingMessage.fromPeerId}`;
+      const now = Date.now();
+      
+      if (!this.recentRelays) {
+        this.recentRelays = new Map();
+      }
+      
+      // Clean up old relay entries (older than 30 seconds)
+      for (const [key, timestamp] of this.recentRelays.entries()) {
+        if (now - timestamp > 30000) {
+          this.recentRelays.delete(key);
+        }
+      }
+      
+      // Check if we've relayed this exact message recently (within 5 seconds)
+      if (this.recentRelays.has(relayKey)) {
+        const lastRelay = this.recentRelays.get(relayKey);
+        if (now - lastRelay < 5000) {
+          this.debug.log(`🚫 ANTI-LOOP: Skipping relay for ${targetPeerId?.substring(0, 8)}... - recently relayed (${now - lastRelay}ms ago)`);
+          return null;
+        }
+      }
+      
+      // Record this relay to prevent loops
+      this.recentRelays.set(relayKey, now);
+      
       this.debug.log(`Requesting signaling relay for peer ${targetPeerId?.substring(0, 8)}...`);
       
       const relayMessage = {
@@ -397,8 +424,15 @@ export class BootstrapNode {
         targetPeerId,
         signalingMessage,
         sourceBootstrapId: this.config.id,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        relayHop: (signalingMessage.relayHop || 0) + 1 // Track relay hops
       };
+      
+      // ANTI-LOOP PROTECTION: Limit relay hops to prevent infinite bouncing
+      if (relayMessage.relayHop > 2) {
+        this.debug.log(`🚫 ANTI-LOOP: Dropping relay for ${targetPeerId?.substring(0, 8)}... - too many hops (${relayMessage.relayHop})`);
+        return null;
+      }
       
       // Send relay request to all connected bootstrap peers using direct messaging
       const connectedPeerIds = this.mesh.getConnectedPeerIds();

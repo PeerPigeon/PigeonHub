@@ -509,13 +509,34 @@ export class WebSocketServerController {
     if (targetPeerId) {
       const success = this.sendToConnection(targetPeerId, message);
       if (!success) {
+        // ANTI-LOOP PROTECTION: Check relay hop count before attempting cross-node relay
+        if (message.relayHop && message.relayHop >= 2) {
+          console.log(`🚫 ANTI-LOOP: Dropping signaling for ${targetPeerId?.substring(0, 8)}... - too many relay hops (${message.relayHop})`);
+          return;
+        }
+        
+        // ANTI-LOOP PROTECTION: Don't relay back to the source bootstrap
+        if (message.sourceBootstrapId && message.originalSource === this.options.port) {
+          console.log(`🚫 ANTI-LOOP: Skipping relay for ${targetPeerId?.substring(0, 8)}... - originated from this server (port ${this.options.port})`);
+          return;
+        }
+        
         // Try cross-node relay if local peer not found
         if (this.crossNodeRelay) {
           console.log(`🌐 Attempting cross-node relay for peer ${targetPeerId?.substring(0, 8)}... from port ${this.options.port}`);
           console.log(`🔍 CROSS-NODE RELAY DEBUG: Signaling message type: ${type}, from: ${message.fromPeerId?.substring(0, 8)}, to: ${targetPeerId?.substring(0, 8)}`);
           console.log(`🔍 CROSS-NODE RELAY DEBUG: Message data:`, JSON.stringify(message, null, 2));
           
-          const relayResult = this.crossNodeRelay(targetPeerId, message);
+          // Add relay hop tracking and source to prevent loops
+          const relayMessage = {
+            ...message,
+            relayHop: (message.relayHop || 0) + 1,
+            originalSource: message.originalSource || this.options.port
+          };
+          
+          console.log(`🔍 RELAY DEBUG: Attempting to relay ${message.type} message to ${targetPeerId?.substring(0, 8)}... on port ${this.options.port} (hop ${relayMessage.relayHop})`);
+          
+          const relayResult = this.crossNodeRelay(targetPeerId, relayMessage);
           console.log(`🔍 CROSS-NODE RELAY DEBUG: Relay result:`, relayResult);
           
           if (relayResult) {
