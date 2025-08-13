@@ -304,6 +304,24 @@ export class BootstrapNode {
         stats: this.getStats()
       });
     }
+
+    if (messageData.content?.type === 'bootstrap-keepalive') {
+      // Handle keepalive pings from other bootstrap servers
+      // Just acknowledge receipt to maintain connection
+      this.mesh.sendDirectMessage(messageData.from, {
+        type: 'bootstrap-keepalive-ack',
+        from: this.config.id,
+        timestamp: Date.now()
+      }).catch(error => {
+        // Don't log keepalive errors unless debugging
+        // console.log(`Keepalive ack failed: ${error.message}`);
+      });
+    }
+
+    if (messageData.content?.type === 'bootstrap-keepalive-ack') {
+      // Received acknowledgment of our keepalive ping
+      // This helps maintain the connection but we don't need to do anything
+    }
     
     // Handle cross-node signaling relay requests
     if (messageData.content?.type === 'signaling-relay') {

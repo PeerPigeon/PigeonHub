@@ -114,6 +114,9 @@ class BootstrapNodeRunner {
       // Set up periodic status reporting
       this.startStatusReporting();
 
+      // Set up keepalive pings between bootstrap servers
+      this.startBootstrapKeepalive();
+
       // Set up health monitoring
       this.startHealthMonitoring();
 
@@ -174,6 +177,39 @@ class BootstrapNodeRunner {
       console.log('');
 
     }, 30000); // Report every 30 seconds
+  }
+
+  /**
+   * Start keepalive pings between bootstrap servers
+   */
+  startBootstrapKeepalive() {
+    setInterval(() => {
+      if (!this.isRunning || !this.bootstrapNode || !this.bootstrapNode.mesh) return;
+
+      // Send keepalive ping to maintain connection between bootstrap servers
+      try {
+        const mesh = this.bootstrapNode.mesh;
+        const connectedPeers = mesh.getConnectedPeerIds ? mesh.getConnectedPeerIds() : [];
+        
+        if (connectedPeers.length > 0) {
+          console.log(`💓 Sending keepalive ping to ${connectedPeers.length} bootstrap peer(s)`);
+          
+          // Send a lightweight ping message to each connected bootstrap peer
+          connectedPeers.forEach(peerId => {
+            mesh.sendDirectMessage(peerId, {
+              type: 'bootstrap-keepalive',
+              from: this.bootstrapNode.config.id,
+              timestamp: Date.now()
+            }).catch(error => {
+              console.log(`⚠️  Keepalive ping failed to ${peerId.substring(0, 8)}...: ${error.message}`);
+            });
+          });
+        }
+      } catch (error) {
+        console.log(`⚠️  Keepalive ping error: ${error.message}`);
+      }
+
+    }, 45000); // Send keepalive every 45 seconds (before Heroku's 55s timeout)
   }
 
   /**
