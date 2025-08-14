@@ -85,6 +85,9 @@ export class BootstrapNode {
 
     // Create debug logger for this bootstrap node
     this.debug = DebugLogger.create(`BootstrapNode-${nodeConfig.id}`);
+    
+    // Track known bootstrap peer IDs for proper message filtering
+    this.knownBootstrapPeers = new Set();
   }
 
   /**
@@ -247,6 +250,13 @@ export class BootstrapNode {
           // Log specific message types for debugging
           if (data.content?.type === 'peer-announce-relay') {
             this.debug.log(`🔍 DEBUGGING: Received peer-announce-relay message for ${data.content.peerId?.substring(0, 8)}...`);
+          }
+          
+          // CRITICAL: Identify bootstrap nodes by their messages
+          if (data.content?.type === 'bootstrap-keepalive' && data.from) {
+            // Mark this peer as a confirmed bootstrap node
+            this.knownBootstrapPeers.add(data.from);
+            this.debug.log(`🏷️  Identified bootstrap node: ${data.from.substring(0, 8)}... (${data.content.from})`);
           }
           
           // Bootstrap nodes can relay/store messages if needed
@@ -453,19 +463,35 @@ export class BootstrapNode {
         return null;
       }
       
-      // Send relay request to all connected bootstrap peers using direct messaging
+      // CRITICAL FIX: Only send relay requests to confirmed bootstrap peers, not regular peers
       const connectedPeerIds = this.mesh.getConnectedPeerIds();
-      this.debug.log(`🔍 DIRECT RELAY: Sending to connected bootstrap peers: ${JSON.stringify(connectedPeerIds)}`);
+      this.debug.log(`🔍 RELAY: Connected peers: ${JSON.stringify(connectedPeerIds)}`);
+      
+      // Filter for only known bootstrap peers (use the same mechanism as keepalives)
+      if (!this.knownBootstrapPeers) {
+        this.knownBootstrapPeers = new Set();
+      }
+      
+      const confirmedBootstrapPeers = Array.from(this.knownBootstrapPeers).filter(peerId => 
+        connectedPeerIds.includes(peerId)
+      );
+      
+      if (confirmedBootstrapPeers.length === 0) {
+        this.debug.log(`� RELAY: No confirmed bootstrap peers available - skipping signaling relay to avoid spamming regular peers`);
+        return null;
+      }
+      
+      this.debug.log(`🔍 RELAY: Sending to ${confirmedBootstrapPeers.length} confirmed bootstrap peer(s): ${JSON.stringify(confirmedBootstrapPeers)}`);
       
       let lastMessageId = null;
-      for (const peerId of connectedPeerIds) {
-        this.debug.log(`🔍 DIRECT RELAY: Sending relay request to ${peerId?.substring(0, 8)}...`);
+      for (const peerId of confirmedBootstrapPeers) {
+        this.debug.log(`🔍 RELAY: Sending relay request to bootstrap node ${peerId?.substring(0, 8)}...`);
         const messageId = this.mesh.sendDirectMessage(peerId, relayMessage);
-        this.debug.log(`🔍 DIRECT RELAY: Result for ${peerId?.substring(0, 8)}...: ${messageId}`);
+        this.debug.log(`🔍 RELAY: Result for bootstrap node ${peerId?.substring(0, 8)}...: ${messageId}`);
         lastMessageId = messageId;
       }
       
-      this.debug.log(`Sent signaling relay request via direct messaging: ${lastMessageId}`);
+      this.debug.log(`Sent signaling relay request to ${confirmedBootstrapPeers.length} bootstrap nodes: ${lastMessageId}`);
       return lastMessageId;
     }
     return null;

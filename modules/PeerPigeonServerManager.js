@@ -203,22 +203,31 @@ export class PeerPigeonServerManager {
               console.log(`🔍 DEBUGGING: getConnectedPeers(): ${JSON.stringify(connectedPeerIds)}`);
             }
             
-            console.log(`🔍 DEBUGGING: Final peer IDs for direct messaging: ${JSON.stringify(connectedPeerIds)}`);
+            // CRITICAL FIX: Only send to confirmed bootstrap peers, not regular peers
+            if (!this.bootstrapNode.knownBootstrapPeers) {
+              this.bootstrapNode.knownBootstrapPeers = new Set();
+            }
             
-            if (Array.isArray(connectedPeerIds) && connectedPeerIds.length > 0) {
-              for (const peerId of connectedPeerIds) {
+            const confirmedBootstrapPeers = Array.from(this.bootstrapNode.knownBootstrapPeers).filter(peerId => 
+              connectedPeerIds.includes(peerId)
+            );
+            
+            console.log(`🔍 DEBUGGING: Confirmed bootstrap peers: ${JSON.stringify(confirmedBootstrapPeers)}`);
+            
+            if (Array.isArray(confirmedBootstrapPeers) && confirmedBootstrapPeers.length > 0) {
+              for (const peerId of confirmedBootstrapPeers) {
                 if (typeof peerId === 'string' && peerId !== meshStatus.peerId) { // Don't send to ourselves
                   try {
                     const directResult = this.bootstrapNode.mesh.sendDirectMessage(peerId, cleanMessage);
-                    console.log(`🔍 DEBUGGING: Direct message to ${peerId.substring(0, 8)}... result: ${directResult}`);
+                    console.log(`🔍 DEBUGGING: Direct message to bootstrap node ${peerId.substring(0, 8)}... result: ${directResult}`);
                     if (directResult) messageId = directResult;
                   } catch (directError) {
-                    console.log(`🔍 DEBUGGING: Direct message to ${peerId.substring(0, 8)}... failed: ${directError.message}`);
+                    console.log(`🔍 DEBUGGING: Direct message to bootstrap node ${peerId.substring(0, 8)}... failed: ${directError.message}`);
                   }
                 }
               }
             } else {
-              console.log(`🔍 DEBUGGING: No valid connected peer IDs found for direct messaging`);
+              console.log(`🔍 DEBUGGING: No confirmed bootstrap peers available - skipping peer announcement to avoid spamming regular peers`);
             }
           } catch (err) {
             console.log(`🔍 DEBUGGING: Manual direct messaging failed: ${err.message}`);
