@@ -180,22 +180,42 @@ class BootstrapNodeRunner {
   }
 
   /**
-   * Start keepalive pings between bootstrap servers
+   * Start keepalive pings between bootstrap servers ONLY
    */
   startBootstrapKeepalive() {
+    // Track known bootstrap peer IDs that we've identified
+    this.knownBootstrapPeers = new Set();
+    
+    // Listen for bootstrap-keepalive messages to identify other bootstrap nodes
+    if (this.bootstrapNode && this.bootstrapNode.mesh) {
+      this.bootstrapNode.mesh.addEventListener('messageReceived', (data) => {
+        if (data.content?.type === 'bootstrap-keepalive' && data.from) {
+          // Mark this peer as a confirmed bootstrap node
+          this.knownBootstrapPeers.add(data.from);
+          console.log(`🏷️  Identified bootstrap node: ${data.from.substring(0, 8)}... (${data.content.from})`);
+        }
+      });
+    }
+    
     setInterval(() => {
       if (!this.isRunning || !this.bootstrapNode || !this.bootstrapNode.mesh) return;
 
-      // Send keepalive ping to maintain connection between bootstrap servers
+      // Send keepalive ping ONLY to other bootstrap nodes, not regular peers
       try {
         const mesh = this.bootstrapNode.mesh;
         const connectedPeers = mesh.getConnectedPeerIds ? mesh.getConnectedPeerIds() : [];
         
-        if (connectedPeers.length > 0) {
-          console.log(`💓 Sending keepalive ping to ${connectedPeers.length} bootstrap peer(s)`);
+        // For now, let's disable automatic keepalives to regular peers
+        // Only send keepalives if we can definitively identify bootstrap nodes
+        const definiteBootstrapPeers = Array.from(this.knownBootstrapPeers).filter(peerId => 
+          connectedPeers.includes(peerId)
+        );
+        
+        if (definiteBootstrapPeers.length > 0) {
+          console.log(`💓 Sending keepalive ping to ${definiteBootstrapPeers.length} confirmed bootstrap node(s)`);
           
-          // Send a lightweight ping message to each connected bootstrap peer
-          connectedPeers.forEach(peerId => {
+          // Send a lightweight ping message to each confirmed bootstrap node only
+          definiteBootstrapPeers.forEach(peerId => {
             try {
               mesh.sendDirectMessage(peerId, {
                 type: 'bootstrap-keepalive',
@@ -203,9 +223,12 @@ class BootstrapNodeRunner {
                 timestamp: Date.now()
               });
             } catch (error) {
-              console.log(`⚠️  Keepalive ping failed to ${peerId.substring(0, 8)}...: ${error.message}`);
+              console.log(`⚠️  Keepalive ping failed to bootstrap node ${peerId.substring(0, 8)}...: ${error.message}`);
             }
           });
+        } else {
+          // Don't send keepalives to unidentified peers
+          console.log(`🔍 Connected to ${connectedPeers.length} peer(s) but no confirmed bootstrap nodes - skipping keepalive`);
         }
       } catch (error) {
         console.log(`⚠️  Keepalive ping error: ${error.message}`);
