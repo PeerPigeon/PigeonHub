@@ -224,26 +224,24 @@ export class BootstrapNode {
         try {
           this.stats.messagesHandled++;
           
-          // Define internal PigeonHub message types that should not be shown to users
-          const internalMessageTypes = [
+          // Define purely internal PigeonHub message types that should be minimally logged
+          // These are maintenance messages, not functional peer discovery messages
+          const quietInternalMessageTypes = [
             'bootstrap-keepalive',
             'bootstrap-keepalive-ack',
             'bootstrap-ping',
-            'bootstrap-pong',
-            'signaling-relay',
-            'peer-announce-relay',
-            'websocket-peer-announcement'
+            'bootstrap-pong'
           ];
           
-          // Check if this is an internal message type
-          const isInternalMessage = data.content?.type && internalMessageTypes.includes(data.content.type);
+          // Check if this is a quiet internal message type
+          const isQuietInternalMessage = data.content?.type && quietInternalMessageTypes.includes(data.content.type);
           
-          // Only log user-visible messages, not internal infrastructure messages
-          if (!isInternalMessage) {
+          // Log all messages, but use different log levels
+          if (!isQuietInternalMessage) {
             this.debug.log(`📨 Message received from ${data.from?.substring(0, 8)}...: ${JSON.stringify(data.content).substring(0, 200)}`);
           } else {
-            // Log internal messages only in debug mode with lower priority
-            this.debug.log(`🔧 Internal message: ${data.content.type} from ${data.from?.substring(0, 8)}...`);
+            // Log maintenance messages only in debug mode with lower priority
+            this.debug.log(`🔧 Maintenance message: ${data.content.type} from ${data.from?.substring(0, 8)}...`);
           }
           
           // Log specific message types for debugging

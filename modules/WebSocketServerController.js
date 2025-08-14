@@ -157,14 +157,15 @@ export class WebSocketServerController {
       // Listen for incoming messages that might indicate peer presence
       this.meshGateway.addEventListener('messageReceived', (data) => {
         // Define internal PigeonHub message types that should not trigger peer discovery
+        // NOTE: peer-announce-relay is NOT included here because it's functional, not just noise
         const internalMessageTypes = [
           'bootstrap-keepalive',
           'bootstrap-keepalive-ack', 
           'bootstrap-ping',
           'bootstrap-pong',
-          'signaling-relay',
-          'peer-announce-relay',
-          'websocket-peer-announcement'
+          'signaling-relay'
+          // 'peer-announce-relay' - REMOVED: This is functional for cross-node peer discovery
+          // 'websocket-peer-announcement' - REMOVED: This is functional for cross-node peer discovery
         ];
         
         // Only relay peer discovery for non-internal messages
