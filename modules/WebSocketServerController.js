@@ -156,10 +156,26 @@ export class WebSocketServerController {
       
       // Listen for incoming messages that might indicate peer presence
       this.meshGateway.addEventListener('messageReceived', (data) => {
-        if (data.from && !this.hasRelayedPeer(data.from)) {
+        // Define internal PigeonHub message types that should not trigger peer discovery
+        const internalMessageTypes = [
+          'bootstrap-keepalive',
+          'bootstrap-keepalive-ack', 
+          'bootstrap-ping',
+          'bootstrap-pong',
+          'signaling-relay',
+          'peer-announce-relay',
+          'websocket-peer-announcement'
+        ];
+        
+        // Only relay peer discovery for non-internal messages
+        const isInternalMessage = data.content?.type && internalMessageTypes.includes(data.content.type);
+        
+        if (data.from && !this.hasRelayedPeer(data.from) && !isInternalMessage) {
           console.log(`🌐 Message from unknown mesh peer ${data.from?.substring(0, 8)}... - relaying to WebSocket clients`);
           this.relayMeshPeerToWebSocketClients(data.from);
           this.markPeerAsRelayed(data.from);
+        } else if (isInternalMessage) {
+          console.log(`🔧 Filtered internal message type '${data.content.type}' from ${data.from?.substring(0, 8)}... - not relaying to clients`);
         }
       });
     }

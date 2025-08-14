@@ -223,7 +223,28 @@ export class BootstrapNode {
       this.mesh.addEventListener('messageReceived', (data) => {
         try {
           this.stats.messagesHandled++;
-          this.debug.log(`📨 Message received from ${data.from?.substring(0, 8)}...: ${JSON.stringify(data.content).substring(0, 200)}`);
+          
+          // Define internal PigeonHub message types that should not be shown to users
+          const internalMessageTypes = [
+            'bootstrap-keepalive',
+            'bootstrap-keepalive-ack',
+            'bootstrap-ping',
+            'bootstrap-pong',
+            'signaling-relay',
+            'peer-announce-relay',
+            'websocket-peer-announcement'
+          ];
+          
+          // Check if this is an internal message type
+          const isInternalMessage = data.content?.type && internalMessageTypes.includes(data.content.type);
+          
+          // Only log user-visible messages, not internal infrastructure messages
+          if (!isInternalMessage) {
+            this.debug.log(`📨 Message received from ${data.from?.substring(0, 8)}...: ${JSON.stringify(data.content).substring(0, 200)}`);
+          } else {
+            // Log internal messages only in debug mode with lower priority
+            this.debug.log(`🔧 Internal message: ${data.content.type} from ${data.from?.substring(0, 8)}...`);
+          }
           
           // Log specific message types for debugging
           if (data.content?.type === 'peer-announce-relay') {
