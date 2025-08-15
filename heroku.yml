@@ -6,4 +6,4 @@ setup:
     NODE_ENV: production
     NPM_CONFIG_PRODUCTION: true
 run:
-  web: node bootstrap-node.js bootstrap-cloud-secondary --port=$PORT
+  web: node index.js

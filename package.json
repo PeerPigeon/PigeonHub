@@ -3,17 +3,16 @@
   "version": "1.0.0",
   "description": "PigeonHub - Decentralized mesh network with WebSocket signaling and PeerPigeon bootstrap nodes",
   "type": "module",
-  "main": "bootstrap-node.js",
+  "main": "index.js",
   "exports": {
-    ".": "./bootstrap-node.js",
-    "./modules/*": "./modules/*",
-    "./config/*": "./config/*"
+    ".": "./index.js",
+    "./manual-hub/*": "./manual-hub/*",
+    "./websocket-server/*": "./websocket-server/*",
+    "./utils/*": "./utils/*"
   },
   "scripts": {
-    "start": "node bootstrap-node.js bootstrap-cloud-primary",
-    "start:bootstrap1": "node bootstrap-node.js --port=3001 --role=primary",
-    "start:bootstrap2": "node bootstrap-node.js --port=3002 --role=secondary", 
-    "start:dev": "concurrently \"npm run start:bootstrap1\" \"npm run start:bootstrap2\"",
+    "start": "node index.js",
+    "start:dev": "PORT=3001 node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -36,12 +35,14 @@
     "url": "https://github.com/draeder/pigeonhub/issues"
   },
   "files": [
-    "bootstrap-node.js",
-    "modules/",
-    "config/",
+    "index.js",
+    "manual-hub/",
+    "websocket-server/",
+    "utils/",
     "README.md"
   ],
   "dependencies": {
+    "@koush/wrtc": "^0.5.3",
     "peerpigeon": "git+https://github.com/draeder/peerpigeon.git",
     "ws": "^8.14.2"
   },

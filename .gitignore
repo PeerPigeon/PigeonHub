@@ -1,3 +1,6 @@
+# Old
+_old/
+
 # Logs
 logs
 *.log
@@ -10,6 +13,10 @@ lerna-debug.log*
 # Reference files (not part of the library)
 peerpigeon_cli.js
 PEERPIGEON_API_DOCUMENTATION.md
+
+# Cloud bootstrap examples and exploration files
+cloud-bootstrap-example.js
+cloud-*.js
 
 # Deployment configuration (use fly.toml.example as template)
 fly.toml
