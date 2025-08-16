@@ -191,8 +191,8 @@ class BootstrapManager {
     const signalingServers = [
       // 'ws://localhost:3000',  // Local primary
       process.env.AWS_SIGNAL,
-      // 'wss://pigeonhub.fly.dev',  // Fly.dev cloud hub
-      // 'wss://pigeonhub-server-3c044110c06f.herokuapp.com'  // Heroku cloud hub
+      'wss://pigeonhub-c.fly.dev',  // Other cloud bootstrap nodes
+      'wss://pigeonhub-c-e60f01c2a291.herokuapp.com'  // Other cloud bootstrap nodes
     ].filter(Boolean); // Remove undefined values
     
     console.log(`🔗 Bootstrap node ${nodeConfig.port || nodeConfig.url} will connect to signaling servers:`, signalingServers);
