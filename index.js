@@ -240,7 +240,7 @@ class BootstrapManager {
 
   async startOwnBootstrapNode() {
     const port = parseInt(process.env.PORT) || 3000;
-    const host = process.env.HOST || 'localhost';
+    const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost');
     
     console.log(`🔍 DEBUG: Starting bootstrap node on ${host}:${port} (from PORT=${process.env.PORT})`);
     
