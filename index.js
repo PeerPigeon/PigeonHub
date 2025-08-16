@@ -83,8 +83,8 @@ class BootstrapManager {
       { port: 3001, host: 'localhost' },
       { port: 3002, host: 'localhost' },
       // Cloud bootstrap nodes
-      // { url: 'wss://pigeonhub.fly.dev', host: 'pigeonhub.fly.dev', port: 443 },
-      // { url: 'wss://pigeonhub-server-3c044110c06f.herokuapp.com', host: 'pigeonhub-server-3c044110c06f.herokuapp.com', port: 443 }
+      { url: 'wss://pigeonhub-c.fly.dev', host: 'pigeonhub-c.fly.dev', port: 443 },
+      { url: 'wss://pigeonhub-c-e60f01c2a291.herokuapp.com', host: 'pigeonhub-c-e60f01c2a291.herokuapp.com', port: 443 }
     ];
 
     // Network identification
