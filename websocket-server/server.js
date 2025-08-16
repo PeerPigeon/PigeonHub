@@ -708,6 +708,7 @@ class PigeonHub {
 
       // Find available port (only for local development)
       const isProduction = process.env.NODE_ENV === 'production' || process.env.PORT;
+      console.log(`🔍 Environment check: NODE_ENV=${process.env.NODE_ENV}, PORT=${process.env.PORT}, isProduction=${isProduction}`);
       if (!isProduction) {
         const availablePort = await this.findAvailablePort(this.port, this.host);
         if (availablePort !== this.port) {
