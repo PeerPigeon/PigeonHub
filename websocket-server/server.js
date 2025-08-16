@@ -65,7 +65,7 @@ class PigeonHub {
   constructor(options = {}) {
     // Server configuration
     this.port = options.port || process.env.PORT || 3000;
-    this.host = options.host || process.env.HOST || 'localhost';
+    this.host = options.host || process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost');
     
     // Shared mesh support
     this.sharedMesh = options.sharedMesh || null;
