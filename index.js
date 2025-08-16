@@ -1,6 +1,10 @@
 import { PigeonHub } from './websocket-server/server.js';
 import { PeerPigeonMesh } from 'peerpigeon';
 import { generateNetworkMeshId } from './utils/MeshIdUtils.js';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // WebRTC setup for Node.js environment
 let webrtcInitialized = false;
@@ -79,8 +83,8 @@ class BootstrapManager {
       { port: 3001, host: 'localhost' },
       { port: 3002, host: 'localhost' },
       // Cloud bootstrap nodes
-      { url: 'wss://pigeonhub.fly.dev', host: 'pigeonhub.fly.dev', port: 443 },
-      { url: 'wss://pigeonhub-server-3c044110c06f.herokuapp.com', host: 'pigeonhub-server-3c044110c06f.herokuapp.com', port: 443 }
+      // { url: 'wss://pigeonhub.fly.dev', host: 'pigeonhub.fly.dev', port: 443 },
+      // { url: 'wss://pigeonhub-server-3c044110c06f.herokuapp.com', host: 'pigeonhub-server-3c044110c06f.herokuapp.com', port: 443 }
     ];
 
     // Network identification
@@ -185,10 +189,11 @@ class BootstrapManager {
     
     // Configure signaling servers including cloud endpoints
     const signalingServers = [
-      'ws://localhost:3000',  // Local primary
-      'wss://pigeonhub.fly.dev',  // Fly.dev cloud hub
-      'wss://pigeonhub-server-3c044110c06f.herokuapp.com'  // Heroku cloud hub
-    ];
+      // 'ws://localhost:3000',  // Local primary
+      process.env.AWS_SIGNAL,
+      // 'wss://pigeonhub.fly.dev',  // Fly.dev cloud hub
+      // 'wss://pigeonhub-server-3c044110c06f.herokuapp.com'  // Heroku cloud hub
+    ].filter(Boolean); // Remove undefined values
     
     console.log(`🔗 Bootstrap node ${nodeConfig.port || nodeConfig.url} will connect to signaling servers:`, signalingServers);
     

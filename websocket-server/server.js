@@ -814,25 +814,14 @@ class PigeonHub {
     for (const serverUrl of signalingServers) {
       try {
         console.log(`🔗 Connecting to signaling server: ${serverUrl}`);
-        await this.mesh.connect(serverUrl);
         
-        // Apply CLI pattern timeout to connection
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error(`Connection timeout to ${serverUrl}`));
-          }, 15000);
-          
-          const cleanup = () => clearTimeout(timeout);
-          
-          this.mesh.addEventListener('signalingConnected', function handler(event) {
-            if (event.url === serverUrl) {
-              cleanup();
-              this.removeEventListener('signalingConnected', handler);
-              resolve();
-            }
-          });
+        // Use CLI pattern - simple connect with timeout, no event waiting
+        const connectPromise = this.mesh.connect(serverUrl);
+        const timeoutPromise = new Promise((resolve, reject) => {
+          setTimeout(() => reject(new Error(`Connection timeout to ${serverUrl}`)), 15000);
         });
         
+        await Promise.race([connectPromise, timeoutPromise]);
         console.log(`✅ Connected to signaling server: ${serverUrl}`);
         
         // After connecting to signaling server, trigger peer discovery

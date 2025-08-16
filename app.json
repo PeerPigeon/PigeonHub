@@ -1,6 +1,6 @@
 {
-  "name": "PigeonHub Bootstrap Secondary",
-  "description": "Secondary bootstrap node for PigeonHub decentralized mesh network",
+  "name": "PigeonHub-C Bootstrap",
+  "description": "PigeonHub-C bootstrap node for decentralized mesh network",
   "repository": "https://github.com/draeder/pigeonhub",
   "logo": "https://via.placeholder.com/200x200.png?text=PigeonHub",
   "keywords": ["webrtc", "p2p", "mesh", "decentralized", "bootstrap"],
