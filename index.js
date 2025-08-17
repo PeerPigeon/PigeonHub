@@ -83,8 +83,8 @@ class BootstrapManager {
       { port: 3001, host: 'localhost' },
       { port: 3002, host: 'localhost' },
       // Cloud bootstrap nodes
-      { url: 'wss://pigeonhub-c.fly.dev', host: 'pigeonhub-c.fly.dev', port: 443 },
-      { url: 'wss://pigeonhub-c-e60f01c2a291.herokuapp.com', host: 'pigeonhub-c-e60f01c2a291.herokuapp.com', port: 443 }
+      // { url: 'wss://pigeonhub-c.fly.dev', host: 'pigeonhub-c.fly.dev', port: 443 },
+      // { url: 'wss://pigeonhub-c-e60f01c2a291.herokuapp.com', host: 'pigeonhub-c-e60f01c2a291.herokuapp.com', port: 443 }
     ];
 
     // Network identification
@@ -189,10 +189,12 @@ class BootstrapManager {
     
     // Configure signaling servers including cloud endpoints
     const signalingServers = [
-      // 'ws://localhost:3000',  // Local primary
-      process.env.AWS_SIGNAL,
-      'wss://pigeonhub-c.fly.dev',  // Other cloud bootstrap nodes
-      'wss://pigeonhub-c-e60f01c2a291.herokuapp.com'  // Other cloud bootstrap nodes
+      'ws://localhost:3000',  // Local primary
+      'ws://localhost:3001',
+      'ws://localhost:3002',
+      // process.env.AWS_SIGNAL,
+      // 'wss://pigeonhub-c.fly.dev',  // Other cloud bootstrap nodes
+      // 'wss://pigeonhub-c-e60f01c2a291.herokuapp.com'  // Other cloud bootstrap nodes
     ].filter(Boolean); // Remove undefined values
     
     console.log(`🔗 Bootstrap node ${nodeConfig.port || nodeConfig.url} will connect to signaling servers:`, signalingServers);
