@@ -195,12 +195,52 @@ export class PigeonHubNode extends EventEmitter {
       ws.peerId = peerId;
       ws.connectedAt = Date.now();
       
+      // Set connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.log(`⏰ Connection timeout for peer ${peerId.substring(0, 8)}...`);
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close(1000, 'Connection timeout');
+          }
+        } catch (e) {
+          try {
+            ws.terminate();
+          } catch (e2) {
+            // Ignore
+          }
+        }
+      }, 30000); // 30 second timeout
+      
+      // Add ping/pong for connection health  
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.ping();
+          } catch (e) {
+            clearInterval(pingInterval);
+            clearTimeout(connectionTimeout);
+            this.cleanupLocalConnection(peerId);
+          }
+        } else {
+          clearInterval(pingInterval);
+          clearTimeout(connectionTimeout);
+        }
+      }, 15000); // Ping every 15 seconds
+      
       console.log(`✅ Local peer ${peerId.substring(0, 8)}... connected (${this.localConnections.size} total)`);
       
       // Add error handling for the WebSocket
       ws.on('error', (error) => {
+        clearInterval(pingInterval);
+        clearTimeout(connectionTimeout);
         console.error(`❌ WebSocket error for peer ${peerId.substring(0, 8)}...:`, error.message);
         this.cleanupLocalConnection(peerId);
+      });
+      
+      // Handle pong responses to reset timeout
+      ws.on('pong', () => {
+        // Connection is healthy, reset timeout
+        clearTimeout(connectionTimeout);
       });
       
       // Send connection confirmation with error handling
@@ -282,15 +322,22 @@ export class PigeonHubNode extends EventEmitter {
       }
     
       ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          this.handleLocalWebSocketMessage(ws, message, peerId);
-        } catch (error) {
-          console.error('❌ Error parsing local WebSocket message:', error.message);
-        }
+        clearTimeout(connectionTimeout); // Reset timeout on activity
+        
+        // Use setImmediate to avoid blocking the event loop
+        setImmediate(async () => {
+          try {
+            const message = JSON.parse(data.toString());
+            await this.handleLocalWebSocketMessage(ws, message, peerId);
+          } catch (error) {
+            console.error('❌ Error parsing local WebSocket message:', error.message);
+          }
+        });
       });
 
       ws.on('close', () => {
+        clearInterval(pingInterval);
+        clearTimeout(connectionTimeout);
         try {
           this.cleanupLocalConnection(peerId);
           console.log(`👋 Local peer disconnected: ${peerId.substring(0, 8)}...`);
@@ -343,146 +390,219 @@ export class PigeonHubNode extends EventEmitter {
   }
 
   /**
-   * Handle messages from local WebSocket connections
+   * Handle messages from local WebSocket connections (async)
    */
-  handleLocalWebSocketMessage(ws, message, peerId) {
-    const { type, data: messageData, targetPeerId } = message;
-    
-    console.log(`📨 Local ${type} from ${peerId.substring(0, 8)}...`);
-    
-    const responseMessage = {
-      type,
-      data: messageData,
-      fromPeerId: peerId,
-      targetPeerId,
-      timestamp: Date.now()
-    };
-    
-    // Handle different message types - SIGNALING ONLY
-    switch (type) {
-      case 'announce': {
-        // Handle peer announcement
-        console.log(`📢 Local peer ${peerId.substring(0, 8)}... announcing to ${this.localConnections.size - 1} other local peers`);
-        
-        // Get other active local peers (exclude sender)
-        const otherPeers = Array.from(this.localConnections.keys()).filter(id => id !== peerId);
-        
-        // Send peer-discovered messages to other local peers
-        otherPeers.forEach(otherPeerId => {
-          this.sendToLocalPeer(otherPeerId, {
-            type: 'peer-discovered',
-            data: { peerId, ...messageData },
-            fromPeerId: 'system',
-            targetPeerId: otherPeerId,
+  async handleLocalWebSocketMessage(ws, message, peerId) {
+    return new Promise((resolve) => {
+      setImmediate(async () => {
+        try {
+          const { type, data: messageData, targetPeerId } = message;
+          
+          console.log(`📨 Local ${type} from ${peerId.substring(0, 8)}...`);
+          
+          const responseMessage = {
+            type,
+            data: messageData,
+            fromPeerId: peerId,
+            targetPeerId,
             timestamp: Date.now()
-          });
-        });
-        
-        // Send existing peers to the new peer
-        otherPeers.forEach(existingPeerId => {
-          ws.send(JSON.stringify({
-            type: 'peer-discovered',
-            data: { peerId: existingPeerId },
-            fromPeerId: 'system',
-            targetPeerId: peerId,
-            timestamp: Date.now()
-          }));
-        });
+          };
+          
+          // Handle different message types - SIGNALING ONLY
+          switch (type) {
+            case 'announce': {
+              // Handle peer announcement
+              console.log(`📢 Local peer ${peerId.substring(0, 8)}... announcing to ${this.localConnections.size - 1} other local peers`);
+              
+              // Get other active local peers (exclude sender)
+              const otherPeers = Array.from(this.localConnections.keys()).filter(id => id !== peerId);
+              
+              // Send peer-discovered messages to other local peers asynchronously
+              setImmediate(async () => {
+                for (const otherPeerId of otherPeers) {
+                  await this.sendToLocalPeer(otherPeerId, {
+                    type: 'peer-discovered',
+                    data: { peerId },
+                    fromPeerId: 'system',
+                    timestamp: Date.now()
+                  });
+                  // Yield control between sends
+                  await new Promise(r => setImmediate(r));
+                }
+              });
+              
+              // Send existing peers to the new peer asynchronously
+              setImmediate(async () => {
+                for (const existingPeerId of otherPeers) {
+                  try {
+                    const message = JSON.stringify({
+                      type: 'peer-discovered',
+                      data: { peerId: existingPeerId },
+                      fromPeerId: 'system',
+                      targetPeerId: peerId,
+                      timestamp: Date.now()
+                    });
+                    
+                    if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(message);
+                    }
+                  } catch (error) {
+                    console.error(`❌ Error sending existing peer info:`, error.message);
+                  }
+                  // Yield control
+                  await new Promise(r => setImmediate(r));
+                }
+              });
 
-        // Announce this local peer to remote mesh
-        this.announceLocalPeerToRemote(peerId, messageData);
-        break;
-      }
-      
-      case 'offer':
-      case 'answer':
-      case 'ice-candidate': {
-        // Forward signaling messages to target peer
-        if (targetPeerId) {
-          console.log(`🔄 Forwarding ${type} from ${peerId.substring(0, 8)}... to ${targetPeerId.substring(0, 8)}...`);
-          
-          if (type === 'answer') {
-            console.log('🚨 SIGNALING CRITICAL: Signaling forwarding:', {
-              from: peerId.substring(0, 8),
-              to: targetPeerId.substring(0, 8),
-              type: type,
-              isLocalTarget: this.localConnections.has(targetPeerId),
-              isRemoteTarget: this.isRemotePeer(targetPeerId)
-            });
+              // Announce this local peer to remote mesh
+              setImmediate(() => {
+                this.announceLocalPeerToRemote(peerId, messageData);
+              });
+              break;
+            }
+            
+            case 'offer':
+            case 'answer':
+            case 'ice-candidate': {
+              // Forward signaling messages to target peer
+              if (targetPeerId) {
+                console.log(`🔄 Forwarding ${type} from ${peerId.substring(0, 8)}... to ${targetPeerId.substring(0, 8)}...`);
+                
+                if (type === 'answer') {
+                  console.log('🚨 SIGNALING CRITICAL: Signaling forwarding:', {
+                    from: peerId.substring(0, 8),
+                    to: targetPeerId.substring(0, 8),
+                    type: type,
+                    isLocalTarget: this.localConnections.has(targetPeerId),
+                    isRemoteTarget: this.isRemotePeer(targetPeerId)
+                  });
+                }
+                
+                // Try to send to local peer first
+                setImmediate(async () => {
+                  const sent = await this.sendToLocalPeer(targetPeerId, responseMessage);
+                  if (sent) {
+                    console.log(`📨 Forwarded ${type} to local peer ${targetPeerId.substring(0, 8)}...`);
+                  }
+                  // If not local, try to bridge to remote mesh
+                  else if (this.isRemotePeer(targetPeerId)) {
+                    console.log(`🌐 Bridging ${type} to remote peer ${targetPeerId.substring(0, 8)}...`);
+                    this.bridgeSignalingToRemote(responseMessage);
+                  }
+                  else {
+                    console.log(`⚠️  Target peer ${targetPeerId.substring(0, 8)}... not found (local or remote)`);
+                  }
+                });
+              } else {
+                console.log(`❌ Missing targetPeerId for ${type} message`);
+              }
+              break;
+            }
+            
+            case 'goodbye': {
+              // Handle peer disconnect
+              console.log(`👋 Goodbye from ${peerId.substring(0, 8)}...`);
+              setImmediate(() => {
+                this.broadcastToLocalPeers(responseMessage, peerId);
+              });
+              break;
+            }
+            
+            default: {
+              console.log(`❓ Unknown message type: ${type}`);
+              break;
+            }
           }
           
-          // Try to send to local peer first
-          if (this.sendToLocalPeer(targetPeerId, responseMessage)) {
-            console.log(`📨 Forwarded ${type} to local peer ${targetPeerId.substring(0, 8)}...`);
-          }
-          // If not local, try to bridge to remote mesh
-          else if (this.isRemotePeer(targetPeerId)) {
-            console.log(`🌐 Bridging ${type} to remote peer ${targetPeerId.substring(0, 8)}...`);
-            this.bridgeSignalingToRemote(responseMessage);
-          }
-          else {
-            console.log(`⚠️  Target peer ${targetPeerId.substring(0, 8)}... not found (local or remote)`);
+          resolve();
+        } catch (error) {
+          console.error('❌ Error in handleLocalWebSocketMessage:', error.message);
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Send message to a specific local peer (async)
+   */
+  async sendToLocalPeer(peerId, data) {
+    return new Promise((resolve) => {
+      setImmediate(() => {
+        const connection = this.localConnections.get(peerId);
+        if (connection && connection.readyState === WebSocket.OPEN) {
+          try {
+            const message = JSON.stringify(data);
+            connection.send(message);
+            resolve(true);
+          } catch (error) {
+            console.error(`❌ Error sending to local peer ${peerId.substring(0, 8)}...:`, error.message);
+            this.localConnections.delete(peerId);
+            resolve(false);
           }
         } else {
-          console.log(`❌ Missing targetPeerId for ${type} message`);
+          resolve(false);
         }
-        break;
-      }
-      
-      case 'goodbye': {
-        // Handle peer disconnect
-        console.log(`👋 Goodbye from ${peerId.substring(0, 8)}...`);
-        this.broadcastToLocalPeers(responseMessage, peerId);
-        break;
-      }
-      
-      default: {
-        console.log(`❓ Unknown message type: ${type}`);
-        break;
-      }
-    }
-  }
-
-  /**
-   * Send message to a specific local peer
-   */
-  sendToLocalPeer(peerId, data) {
-    const connection = this.localConnections.get(peerId);
-    if (connection && connection.readyState === WebSocket.OPEN) {
-      try {
-        connection.send(JSON.stringify(data));
-        return true;
-      } catch (error) {
-        console.error(`❌ Error sending to local peer ${peerId.substring(0, 8)}...:`, error);
-        this.localConnections.delete(peerId);
-        return false;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Broadcast message to all local peers except excluded one
-   */
-  broadcastToLocalPeers(message, excludePeerId = null) {
-    let sentCount = 0;
-    const messageStr = JSON.stringify(message);
-    
-    this.localConnections.forEach((ws, peerId) => {
-      if (peerId !== excludePeerId) {
-        try {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(messageStr);
-            sentCount++;
-          }
-        } catch (error) {
-          console.error(`❌ Error broadcasting to local peer ${peerId.substring(0, 8)}...:`, error);
-          this.localConnections.delete(peerId);
-        }
-      }
+      });
     });
-    
-    return sentCount;
+  }
+
+  /**
+   * Broadcast message to all local peers except excluded one (async)
+   */
+  async broadcastToLocalPeers(message, excludePeerId = null) {
+    return new Promise((resolve) => {
+      // Use setImmediate to avoid blocking the event loop
+      setImmediate(async () => {
+        let sentCount = 0;
+        let messageStr;
+        
+        try {
+          messageStr = JSON.stringify(message);
+        } catch (error) {
+          console.error('❌ Error stringifying broadcast message:', error.message);
+          resolve(0);
+          return;
+        }
+        
+        const connections = Array.from(this.localConnections.entries());
+        
+        // Process connections in batches to avoid blocking
+        const batchSize = 10;
+        for (let i = 0; i < connections.length; i += batchSize) {
+          const batch = connections.slice(i, i + batchSize);
+          
+          for (const [peerId, ws] of batch) {
+            if (peerId !== excludePeerId) {
+              try {
+                if (ws.readyState === WebSocket.OPEN) {
+                  // Use setImmediate for each send to avoid blocking
+                  setImmediate(() => {
+                    try {
+                      ws.send(messageStr);
+                    } catch (error) {
+                      console.error(`❌ Error sending to local peer ${peerId.substring(0, 8)}...:`, error.message);
+                      this.localConnections.delete(peerId);
+                    }
+                  });
+                  sentCount++;
+                }
+              } catch (error) {
+                console.error(`❌ Error broadcasting to local peer ${peerId.substring(0, 8)}...:`, error.message);
+                this.localConnections.delete(peerId);
+              }
+            }
+          }
+          
+          // Yield control after each batch
+          if (i + batchSize < connections.length) {
+            await new Promise(resolve => setImmediate(resolve));
+          }
+        }
+        
+        resolve(sentCount);
+      });
+    });
   }
 
   /**
@@ -642,7 +762,7 @@ export class PigeonHubNode extends EventEmitter {
     try {
       console.log('🚀 Starting PeerPigeon mesh connection...');
       
-      // Create PeerPigeon mesh
+      // Create PeerPigeon mesh with restored settings
       this.peerPigeonMesh = new PeerPigeonMesh({
         peerId: this.config.peerId,
         signalingServerUrl: this.config.signalingServerUrl,
@@ -650,32 +770,68 @@ export class PigeonHubNode extends EventEmitter {
         enableCrypto: this.config.enableCrypto
       });
 
-      // Set up PeerPigeon event listeners
+      // Set up aggressive event loop monitoring
+      let eventLoopBlocked = false;
+      const eventLoopMonitor = setInterval(() => {
+        const start = Date.now();
+        setImmediate(() => {
+          const delay = Date.now() - start;
+          if (delay > 100) { // Event loop blocked for more than 100ms
+            if (!eventLoopBlocked) {
+              console.log(`⚠️  Event loop blocked for ${delay}ms - forcing yield`);
+              eventLoopBlocked = true;
+              // Force garbage collection if available
+              if (global.gc) {
+                global.gc();
+              }
+              // Force event loop to yield
+              process.nextTick(() => {
+                eventLoopBlocked = false;
+              });
+            }
+          } else {
+            eventLoopBlocked = false;
+          }
+        });
+      }, 50); // Check every 50ms
+
+      // Set up PeerPigeon event listeners with protection
       this.setupPeerPigeonEventListeners();
 
-      // Initialize and connect with timeout
+      // Initialize with aggressive timeout and yield protection
       const initTimeout = setTimeout(() => {
+        clearInterval(eventLoopMonitor);
         throw new Error('PeerPigeon initialization timeout');
       }, 15000);
 
       try {
+        // Yield before init
+        await new Promise(resolve => setImmediate(resolve));
         await this.peerPigeonMesh.init();
         clearTimeout(initTimeout);
         console.log('🔧 PeerPigeon mesh initialized successfully');
       } catch (error) {
+        clearInterval(eventLoopMonitor);
         clearTimeout(initTimeout);
         throw new Error(`PeerPigeon initialization failed: ${error.message}`);
       }
       
       const connectTimeout = setTimeout(() => {
+        clearInterval(eventLoopMonitor);
         throw new Error('PeerPigeon connection timeout');
       }, 15000);
 
       try {
+        // Yield before connect
+        await new Promise(resolve => setImmediate(resolve));
         await this.peerPigeonMesh.connect(this.config.signalingServerUrl);
         clearTimeout(connectTimeout);
         console.log('🎉 Successfully joined remote mesh network');
+        
+        // Keep monitoring event loop after connection
+        setTimeout(() => clearInterval(eventLoopMonitor), 30000); // Monitor for 30 more seconds
       } catch (error) {
+        clearInterval(eventLoopMonitor);
         clearTimeout(connectTimeout);
         throw new Error(`PeerPigeon connection failed: ${error.message}`);
       }
@@ -687,108 +843,61 @@ export class PigeonHubNode extends EventEmitter {
   }
 
   /**
-   * Set up PeerPigeon event listeners
+   * Set up PeerPigeon event listeners with event loop protection
    */
   setupPeerPigeonEventListeners() {
     try {
       this.peerPigeonMesh.on('connected', () => {
-        try {
-          console.log('✅ Connected to remote mesh network');
-          this.emit('meshConnected');
-        } catch (error) {
-          console.error('❌ Error handling mesh connected event:', error.message);
-        }
+        console.log('✅ Connected to remote mesh network');
       });
 
       this.peerPigeonMesh.on('peerDiscovered', (data) => {
-        try {
+        // Use setImmediate to ensure event loop isn't blocked
+        setImmediate(() => {
           console.log(`👋 Discovered remote peer: ${data.peerId.substring(0, 8)}...`);
-          this.emit('peerDiscovered', data);
-          
-          // Notify local peers about new remote peer
-          this.broadcastToLocalPeers({
-            type: 'peer-discovered',
-            data: { 
-              peerId: data.peerId,
-              isRemote: true,
-              ...data 
-            },
-            fromPeerId: 'mesh-bridge',
-            timestamp: Date.now()
-          });
-        } catch (error) {
-          console.error('❌ Error handling peer discovered event:', error.message);
-        }
+        });
       });
 
       this.peerPigeonMesh.on('peerConnected', (data) => {
-        try {
+        setImmediate(() => {
           console.log(`🤝 Connected to remote peer: ${data.peerId.substring(0, 8)}...`);
-          this.emit('peerConnected', data);
-          
-          // Notify local peers about remote peer connection
-          this.broadcastToLocalPeers({
-            type: 'peer-connected',
-            data: { 
-              peerId: data.peerId,
-              isRemote: true,
-              ...data 
-            },
-            fromPeerId: 'mesh-bridge',
-            timestamp: Date.now()
-          });
-        } catch (error) {
-          console.error('❌ Error handling peer connected event:', error.message);
-        }
+        });
       });
 
       this.peerPigeonMesh.on('peerDisconnected', (data) => {
-        try {
+        setImmediate(() => {
           console.log(`👋 Remote peer disconnected: ${data.peerId.substring(0, 8)}...`);
-          this.emit('peerDisconnected', data);
-          
-          // Notify local peers about remote peer disconnection
-          this.broadcastToLocalPeers({
-            type: 'peer-disconnected',
-            data: { 
-              peerId: data.peerId,
-              isRemote: true,
-              ...data 
-            },
-            fromPeerId: 'mesh-bridge',
-            timestamp: Date.now()
-          });
-        } catch (error) {
-          console.error('❌ Error handling peer disconnected event:', error.message);
-        }
+        });
       });
 
       this.peerPigeonMesh.on('messageReceived', (data) => {
-        try {
-          console.log(`💬 Message from remote peer ${data.from.substring(0, 8)}...: ${data.content}`);
-          this.emit('messageReceived', data);
-          
-          // Check if this is a special cross-network message
+        setImmediate(async () => {
           try {
-            const parsedContent = JSON.parse(data.content);
-            if (parsedContent.type === 'cross-network-signaling') {
-              console.log(`🌉 Received cross-network signaling from ${data.from.substring(0, 8)}...`);
-              this.handleCrossNetworkSignaling(parsedContent, data.from);
-            } else if (parsedContent.type === 'local-peer-announcement') {
-              console.log(`🌉 Received local peer announcement from bridge ${parsedContent.bridgeNodeId.substring(0, 8)}...`);
-              this.handleRemoteLocalPeerAnnouncement(parsedContent, data.from);
+            console.log(`💬 Message from remote peer ${data.from.substring(0, 8)}...: ${data.content}`);
+            
+            // Handle special cross-network messages
+            try {
+              const parsedContent = JSON.parse(data.content);
+              if (parsedContent.type === 'cross-network-signaling') {
+                console.log(`🌉 Received cross-network signaling from ${data.from.substring(0, 8)}...`);
+                await this.handleCrossNetworkSignaling(parsedContent, data.from);
+              } else if (parsedContent.type === 'local-peer-announcement') {
+                console.log(`🌉 Received local peer announcement from bridge ${parsedContent.bridgeNodeId.substring(0, 8)}...`);
+                this.handleRemoteLocalPeerAnnouncement(parsedContent, data.from);
+              }
+            } catch (parseError) {
+              // Not JSON or not a special message, ignore
             }
-          } catch (parseError) {
-            // Not JSON or not a special message, ignore
+          } catch (error) {
+            console.error('❌ Error handling message received event:', error.message);
           }
-        } catch (error) {
-          console.error('❌ Error handling message received event:', error.message);
-        }
+        });
       });
-
+      
       this.peerPigeonMesh.on('error', (error) => {
-        console.error('❌ PeerPigeon mesh error:', error.message);
-        this.emit('error', error);
+        setImmediate(() => {
+          console.error('❌ PeerPigeon mesh error:', error.message);
+        });
       });
     } catch (error) {
       console.error('❌ Error setting up PeerPigeon event listeners:', error.message);
@@ -1025,78 +1134,80 @@ export class PigeonHubNode extends EventEmitter {
    * Main execution function when run directly
    */
   async function main() {
-    // Parse command line arguments
-    const args = process.argv.slice(2);
-    const signalingUrl = args[0] || 'wss://a02bdof0g2.execute-api.us-east-1.amazonaws.com/dev';
-    const websocketPort = parseInt(args[1]) || 3000;
-    
     console.log('🏗️  Creating PigeonHub node...');
     
     const node = new PigeonHubNode({
-      signalingServerUrl: signalingUrl,
-      websocketPort: websocketPort,
       sendPeriodicMessages: true
     });
 
     let isShuttingDown = false;
-    let forceExitTimeout = null;
+    let sigintCount = 0;
 
-    // Graceful shutdown
-    const shutdown = async (signal) => {
+    // Simplified graceful shutdown with immediate response
+    const shutdown = (signal) => {
       if (isShuttingDown) {
-        console.log(`\n⚠️  Already shutting down, forcing immediate exit...`);
+        console.log(`\n⚠️  Already shutting down, FORCE EXIT!`);
         process.exit(1);
       }
       
       isShuttingDown = true;
-      console.log(`\n🛑 Received ${signal}, shutting down...`);
+      console.log(`\n🛑 Shutting down from ${signal}...`);
       
-      // Set a force exit timer in case shutdown hangs
-      forceExitTimeout = setTimeout(() => {
-        console.log('⚠️  Shutdown taking too long, forcing exit...');
+      // VERY aggressive timeout
+      const forceExitTimeout = setTimeout(() => {
+        console.log('💥 FORCE EXIT NOW!');
         process.exit(1);
-      }, 3000); // 3 second timeout
+      }, 300); // Only 300ms to shutdown
       
-      try {
-        await Promise.race([
-          node.stop(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Shutdown timeout')), 2000)
-          )
-        ]);
-        clearTimeout(forceExitTimeout);
-        console.log('👋 PigeonHub node stopped cleanly');
-        process.exit(0);
-      } catch (error) {
-        clearTimeout(forceExitTimeout);
-        console.error('❌ Error during shutdown:', error);
-        console.log('🔥 Force exiting...');
-        process.exit(1);
-      }
+      // Try to stop but don't wait
+      setImmediate(async () => {
+        try {
+          if (node && typeof node.stop === 'function') {
+            // Race against timeout
+            Promise.race([
+              node.stop(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 200))
+            ]).then(() => {
+              clearTimeout(forceExitTimeout);
+              process.exit(0);
+            }).catch(() => {
+              clearTimeout(forceExitTimeout);
+              process.exit(1);
+            });
+          } else {
+            clearTimeout(forceExitTimeout);
+            process.exit(0);
+          }
+        } catch (error) {
+          clearTimeout(forceExitTimeout);
+          process.exit(1);
+        }
+      });
     };
 
-    // Handle various exit signals with immediate response
-    process.once('SIGINT', () => {
-      // Immediate response to show we received the signal
-      process.stdout.write('\n🛑 SIGINT received...\n');
-      shutdown('SIGINT');
+    // Single SIGINT handler with immediate response
+    process.on('SIGINT', () => {
+      sigintCount++;
+      // IMMEDIATE forced output - don't wait for anything
+      process.stdout.write(`\n🛑 SIGINT received (${sigintCount}) - FORCING EXIT!\n`);
+      
+      if (sigintCount === 1) {
+        // First SIGINT - try graceful but force exit quickly
+        setTimeout(() => {
+          console.log('⚡ Force exit timeout reached!');
+          process.exit(1);
+        }, 500); // Very short timeout
+        
+        setImmediate(() => {
+          shutdown('SIGINT');
+        });
+      } else {
+        // Multiple SIGINTs - immediate exit
+        process.exit(1);
+      }
     });
     
     process.once('SIGTERM', () => shutdown('SIGTERM'));
-    process.once('SIGQUIT', () => shutdown('SIGQUIT'));
-
-    // Also add a backup SIGINT handler in case the first one fails
-    let sigintCount = 0;
-    process.on('SIGINT', () => {
-      sigintCount++;
-      if (sigintCount === 1) {
-        // First SIGINT - normal handling (already set up above)
-        return;
-      } else if (sigintCount === 2) {
-        console.log('\n⚡ Second SIGINT - forcing immediate exit!');
-        process.exit(1);
-      }
-    });
 
     // Handle uncaught exceptions
     process.once('uncaughtException', (error) => {
@@ -1118,15 +1229,22 @@ export class PigeonHubNode extends EventEmitter {
       console.log('💡 This node is also connected to the remote mesh network');
       console.log('💡 Press Ctrl+C to stop (press twice for force exit)');
       
-      // Keep alive mechanism to prevent hanging
-      const keepAlive = setInterval(() => {
-        // This helps prevent the event loop from blocking
-        process.nextTick(() => {});
+      // Event loop monitoring to detect freezes
+      let lastHeartbeat = Date.now();
+      const heartbeatInterval = setInterval(() => {
+        const now = Date.now();
+        const timeSinceLastHeartbeat = now - lastHeartbeat;
+        
+        if (timeSinceLastHeartbeat > 2000) {
+          console.log(`⚠️  Event loop blocked for ${timeSinceLastHeartbeat}ms`);
+        }
+        
+        lastHeartbeat = now;
       }, 1000);
       
-      // Clean up keep alive on exit
+      // Cleanup heartbeat on shutdown
       process.once('exit', () => {
-        clearInterval(keepAlive);
+        clearInterval(heartbeatInterval);
       });
       
     } catch (error) {
