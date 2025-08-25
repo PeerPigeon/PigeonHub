@@ -6,13 +6,20 @@
   "main": "index.js",
   "exports": {
     ".": "./index.js",
-    "./manual-hub/*": "./manual-hub/*",
+    "./kademlia/*": "./kademlia/*",
     "./websocket-server/*": "./websocket-server/*",
-    "./utils/*": "./utils/*"
+    "./utils/*": "./utils/*",
+    "./src/*": "./src/*"
   },
   "scripts": {
-    "start": "node index.js",
+    "start": "node start.js",
     "start:dev": "PORT=3001 node index.js",
+    "start:hub": "node start.js",
+    "start:node": "node pigeonhub-node.js",
+    "start:example": "node pigeonhub-example.js",
+    "node:example": "node pigeonhub-node-example.js",
+    "kademlia:demo": "node kademlia-demo.js",
+    "example": "node pigeonhub-example.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -36,7 +43,8 @@
   },
   "files": [
     "index.js",
-    "manual-hub/",
+    "src/",
+    "kademlia/",
     "websocket-server/",
     "utils/",
     "README.md"

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Local Signaling</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-weight: bold; 
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px; 
+        }
+        .primary { background: #007bff; color: white; }
+        .primary:hover { background: #0056b3; }
+        .secondary { background: #6c757d; color: white; }
+        .secondary:hover { background: #545b62; }
+        #messages { 
+            border: 1px solid #ddd; 
+            height: 300px; 
+            overflow-y: auto; 
+            padding: 10px; 
+            background: #f8f9fa; 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px; 
+        }
+        #peerList { 
+            border: 1px solid #ddd; 
+            min-height: 100px; 
+            padding: 10px; 
+            background: #f8f9fa; 
+        }
+        .peer { 
+            padding: 5px; 
+            margin: 2px 0; 
+            background: #e9ecef; 
+            border-radius: 3px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐦 PigeonHub Local Signaling Test</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            Disconnected from local signaling server
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn" class="primary">Connect to Local Server</button>
+            <button id="disconnectBtn" class="secondary" disabled>Disconnect</button>
+            <button id="announceBtn" class="secondary" disabled>Announce Presence</button>
+            <button id="clearBtn" class="secondary">Clear Messages</button>
+        </div>
+        
+        <h3>Discovered Peers:</h3>
+        <div id="peerList">No peers discovered yet...</div>
+        
+        <h3>Messages:</h3>
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let myPeerId = null;
+        let discoveredPeers = new Set();
+        
+        const statusEl = document.getElementById('connectionStatus');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const announceBtn = document.getElementById('announceBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const messagesEl = document.getElementById('messages');
+        const peerListEl = document.getElementById('peerList');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            messagesEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        function updatePeerList() {
+            if (discoveredPeers.size === 0) {
+                peerListEl.innerHTML = 'No peers discovered yet...';
+            } else {
+                peerListEl.innerHTML = Array.from(discoveredPeers)
+                    .map(peerId => `<div class="peer">🐦 ${peerId}</div>`)
+                    .join('');
+            }
+        }
+        
+        function connect() {
+            // Generate a random peer ID
+            myPeerId = 'test_peer_' + Math.random().toString(36).substr(2, 9);
+            
+            // Connect to local signaling server with peer ID as query param
+            ws = new WebSocket(`ws://localhost:3001/?peerId=${myPeerId}`);
+            
+            ws.onopen = () => {
+                log('✅ Connected to local signaling server');
+                statusEl.textContent = `Connected as ${myPeerId}`;
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                announceBtn.disabled = false;
+                
+                // Automatically announce presence
+                announce();
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📨 Received: ${JSON.stringify(data)}`);
+                    
+                    switch (data.type) {
+                        case 'peer-discovered':
+                            if (data.peerId && data.peerId !== myPeerId) {
+                                discoveredPeers.add(data.peerId);
+                                updatePeerList();
+                                log(`👋 Discovered peer: ${data.peerId}`);
+                            }
+                            break;
+                            
+                        case 'peer-left':
+                            if (data.peerId) {
+                                discoveredPeers.delete(data.peerId);
+                                updatePeerList();
+                                log(`👋 Peer left: ${data.peerId}`);
+                            }
+                            break;
+                            
+                        case 'offer':
+                        case 'answer':
+                        case 'ice-candidate':
+                            log(`🔄 WebRTC signaling message: ${data.type} from ${data.from}`);
+                            break;
+                            
+                        default:
+                            log(`❓ Unknown message type: ${data.type}`);
+                    }
+                } catch (error) {
+                    log(`❌ Error parsing message: ${error.message}`);
+                    log(`📨 Raw message: ${event.data}`);
+                }
+            };
+            
+            ws.onclose = () => {
+                log('🔌 Disconnected from signaling server');
+                statusEl.textContent = 'Disconnected from local signaling server';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                announceBtn.disabled = true;
+                discoveredPeers.clear();
+                updatePeerList();
+            };
+            
+            ws.onerror = (error) => {
+                log(`❌ WebSocket error: ${error}`);
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                // Send goodbye message before disconnecting
+                send({ type: 'goodbye' });
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        function announce() {
+            send({ type: 'announce' });
+            log(`📢 Announced presence as ${myPeerId}`);
+        }
+        
+        function send(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+                log(`📤 Sent: ${JSON.stringify(data)}`);
+            } else {
+                log('❌ Cannot send - not connected');
+            }
+        }
+        
+        function clearMessages() {
+            messagesEl.innerHTML = '';
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        announceBtn.addEventListener('click', announce);
+        clearBtn.addEventListener('click', clearMessages);
+        
+        // Initial log
+        log('🚀 Test page loaded. Click "Connect to Local Server" to start.');
+    </script>
+</body>
+</html>

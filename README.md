@@ -1,6 +1,6 @@
 # PigeonHub
 
-PigeonHub is a decentralized mesh network infrastructure built on top of PeerPigeon, providing WebSocket signaling servers and bootstrap nodes for peer discovery and mesh network formation. It serves as both a standalone network infrastructure and a library for building censorship-resistant peer-to-peer applications.
+PigeonHub is a decentralized mesh network infrastructure that combines WebSocket signaling and Kademlia DHT bootstrap discovery into a unified library. It provides both standalone network infrastructure and components for building censorship-resistant peer-to-peer applications.
 
 ## 🚀 Quick Start
 
@@ -16,25 +16,69 @@ cd pigeonhub
 npm install
 ```
 
-### Usage
+### Integrated Usage (Recommended)
+
+```javascript
+import PigeonHub from 'pigeonhub';
+
+// Start a complete bootstrap node with WebSocket + Kademlia
+const hub = new PigeonHub({
+  role: 'bootstrap',
+  capabilities: ['websocket-signaling', 'bootstrap'],
+  websocketPort: 3000,
+  kademliaPort: 9000,
+  networkId: 'my-network'
+});
+
+await hub.start();
+// Now ready for browser connections at ws://localhost:3000/ws
+```
+
+### Individual Components
+
+```javascript
+// Use just the Kademlia DHT
+import { KademliaDHT } from 'pigeonhub';
+const dht = new KademliaDHT({ port: 9000 });
+await dht.start();
+
+// Use just the Bootstrap Registry  
+import { BootstrapRegistry } from 'pigeonhub';
+const registry = new BootstrapRegistry({ networkId: 'my-network' });
+await registry.start();
+```
+
+### Running Examples
 
 ```bash
-# Start a primary bootstrap node on port 8080 (cloud deployment)
+# Complete integration demo (WebSocket + Kademlia)
 npm start
 
-# Start primary bootstrap node on port 3001 (local development)
-npm run start:bootstrap1
+# Original Kademlia-only demo
+npm run kademlia:demo
 
-# Start secondary bootstrap node on port 3002 (local development)
-npm run start:bootstrap2
-
-# Start both nodes for full local mesh network
-npm run start:dev
-
-# Start with custom configuration
-node bootstrap-node.js bootstrap-cloud-primary
-node bootstrap-node.js --port=3001 --role=primary
+# Integration example
+npm run example
 ```
+
+## 🌐 What's New: Unified Architecture
+
+PigeonHub now integrates two networking layers:
+
+### 1. **WebSocket Signaling Layer** (for browsers)
+- Helps web applications discover and connect to peers
+- Handles WebRTC signaling for browser-to-browser connections
+- Provides `/health` endpoint for monitoring
+
+### 2. **Kademlia DHT Layer** (for infrastructure)  
+- Enables servers to automatically discover each other
+- Provides distributed storage for network configuration
+- Creates resilient, self-organizing bootstrap networks
+
+### 3. **Unified PigeonHub Class**
+- Starts both layers together automatically  
+- Handles network formation and coordination
+- Provides simple API for complex networking
 
 ## 🌐 Production Bootstrap Nodes
 
