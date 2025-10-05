@@ -1,6 +1,6 @@
 {
   "name": "pigeonhub",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "PigeonHub - Decentralized mesh network with WebSocket signaling and PeerPigeon bootstrap nodes",
   "type": "module",
   "main": "index.js",
@@ -28,11 +28,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/draeder/pigeonhub.git"
+    "url": "git+https://github.com/PeerPigeon/PigeonHub.git"
   },
-  "homepage": "https://github.com/draeder/pigeonhub#readme",
+  "homepage": "https://github.com/PeerPigeon/PigeonHub#readme",
   "bugs": {
-    "url": "https://github.com/draeder/pigeonhub/issues"
+    "url": "https://github.com/PeerPigeon/PigeonHub/issues"
   },
   "files": [
     "index.js",

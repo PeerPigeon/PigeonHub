@@ -11,7 +11,7 @@ PigeonHub is a simple, production-ready PeerPigeon hub server that provides WebS
 npm install pigeonhub
 
 # Or clone and run locally
-git clone https://github.com/draeder/pigeonhub.git
+git clone https://github.com/PeerPigeon/PigeonHub.git
 cd pigeonhub
 npm install
 ```
