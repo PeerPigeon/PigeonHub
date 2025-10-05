@@ -28,7 +28,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/draeder/pigeonhub.git"
+    "url": "git+https://github.com/draeder/pigeonhub.git"
   },
   "homepage": "https://github.com/draeder/pigeonhub#readme",
   "bugs": {
