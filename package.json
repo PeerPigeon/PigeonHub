@@ -42,9 +42,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@koush/wrtc": "^0.5.3",
-    "peerpigeon": "git+https://github.com/draeder/peerpigeon.git",
-    "ws": "^8.14.2"
+    "peerpigeon": "git+https://github.com/PeerPigeon/PeerPigeon.git"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
