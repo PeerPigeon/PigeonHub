@@ -18,7 +18,7 @@ const PORT = parseInt(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Get bootstrap hubs from environment variable
-let bootstrapHubs = ['wss://pigeonhub.fly.dev/'];
+let bootstrapHubs = ['wss://pigeonhub.fly.dev/','wss://pigeonhub-c.fly.dev/'];
 if (process.env.BOOTSTRAP_HUBS) {
     bootstrapHubs = process.env.BOOTSTRAP_HUBS.split(',').map(uri => uri.trim()).filter(uri => uri);
     console.log(`🔗 Bootstrap hubs configured: ${bootstrapHubs.join(', ')}\n`);

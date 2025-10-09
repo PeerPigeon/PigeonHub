@@ -1,0 +1,10 @@
+# PlatformIO
+.pio/
+.vscode/
+.clang_complete
+.gcc-flags.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class

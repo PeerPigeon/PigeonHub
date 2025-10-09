@@ -233,7 +233,7 @@ DEBUG=PeerPigeonMesh         # Enable debug logging
 
 ```bash
 # Clone and setup
-git clone https://github.com/draeder/pigeonhub.git
+git clone https://github.com/PeerPigeon/PigeonHub.git
 cd pigeonhub
 npm install
 
