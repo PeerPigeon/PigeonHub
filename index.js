@@ -35,53 +35,124 @@ const hub = new PeerPigeonServer({
     bootstrapHubs: bootstrapHubs.length > 0 ? bootstrapHubs : undefined
 });
 
-// Event listeners
-hub.on('started', ({ host, port }) => {
+// Set max listeners to prevent memory leak warnings
+hub.setMaxListeners(20);
+
+// Event listener functions (stored for cleanup)
+const onStarted = ({ host, port }) => {
     console.log(`✅ Hub running on ws://${host}:${port}`);
     console.log(`   Health: http://${host}:${port}/health`);
     console.log(`   Hubs:   http://${host}:${port}/hubs\n`);
-});
+};
 
-hub.on('peerConnected', ({ peerId, totalConnections }) => {
+const onPeerConnected = ({ peerId, totalConnections }) => {
     console.log(`✅ Peer: ${peerId.substring(0, 8)}... (${totalConnections} total)`);
-});
+};
 
-hub.on('peerDisconnected', ({ peerId, totalConnections }) => {
+const onPeerDisconnected = ({ peerId, totalConnections }) => {
     console.log(`❌ Peer: ${peerId.substring(0, 8)}... (${totalConnections} remaining)`);
-});
+};
 
-hub.on('hubRegistered', ({ peerId, totalHubs }) => {
+const onHubRegistered = ({ peerId, totalHubs }) => {
     console.log(`🏢 Hub: ${peerId.substring(0, 8)}... (${totalHubs} total)`);
-});
+};
 
-hub.on('bootstrapConnected', ({ uri }) => {
+const onBootstrapConnected = ({ uri }) => {
     console.log(`🔗 Connected to bootstrap: ${uri}`);
-});
+};
 
-hub.on('hubDiscovered', ({ peerId }) => {
+const onHubDiscovered = ({ peerId }) => {
     console.log(`🔍 Discovered hub: ${peerId.substring(0, 8)}...`);
-});
+};
 
-hub.on('error', (error) => {
+const onError = (error) => {
     console.error('❌ Error:', error.message);
-});
+};
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
+// Register event listeners
+hub.on('started', onStarted);
+hub.on('peerConnected', onPeerConnected);
+hub.on('peerDisconnected', onPeerDisconnected);
+hub.on('hubRegistered', onHubRegistered);
+hub.on('bootstrapConnected', onBootstrapConnected);
+hub.on('hubDiscovered', onHubDiscovered);
+hub.on('error', onError);
+
+// Memory monitoring (every 5 minutes)
+const MEMORY_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let memoryMonitor = null;
+
+const startMemoryMonitoring = () => {
+    memoryMonitor = setInterval(() => {
+        const usage = process.memoryUsage();
+        const heapUsedMB = (usage.heapUsed / 1024 / 1024).toFixed(2);
+        const heapTotalMB = (usage.heapTotal / 1024 / 1024).toFixed(2);
+        const rssMB = (usage.rss / 1024 / 1024).toFixed(2);
+        const externalMB = (usage.external / 1024 / 1024).toFixed(2);
+        
+        console.log(`\n📊 Memory Usage:`);
+        console.log(`   RSS: ${rssMB} MB`);
+        console.log(`   Heap Used: ${heapUsedMB} MB / ${heapTotalMB} MB`);
+        console.log(`   External: ${externalMB} MB`);
+        console.log(`   Connections: ${hub.connections ? hub.connections.size : 0}\n`);
+        
+        // Force garbage collection if heap usage is over 500MB (requires --expose-gc flag)
+        if (global.gc && usage.heapUsed > 500 * 1024 * 1024) {
+            console.log('🧹 Running garbage collection...');
+            global.gc();
+        }
+    }, MEMORY_CHECK_INTERVAL);
+};
+
+// Cleanup function to remove all event listeners
+const cleanup = async () => {
     console.log('\n🛑 Shutting down...');
+    
+    // Stop memory monitoring
+    if (memoryMonitor) {
+        clearInterval(memoryMonitor);
+        memoryMonitor = null;
+    }
+    
+    // Remove all event listeners to prevent memory leaks
+    hub.off('started', onStarted);
+    hub.off('peerConnected', onPeerConnected);
+    hub.off('peerDisconnected', onPeerDisconnected);
+    hub.off('hubRegistered', onHubRegistered);
+    hub.off('bootstrapConnected', onBootstrapConnected);
+    hub.off('hubDiscovered', onHubDiscovered);
+    hub.off('error', onError);
+    
+    // Remove all remaining listeners
+    hub.removeAllListeners();
+    
+    // Stop the hub server
     await hub.stop();
+    
     console.log('✅ Stopped');
     process.exit(0);
+};
+
+// Graceful shutdown
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+    console.error('� Uncaught Exception:', error);
+    cleanup();
 });
 
-process.on('SIGTERM', async () => {
-    console.log('\n🛑 Shutting down...');
-    await hub.stop();
-    process.exit(0);
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+    cleanup();
 });
 
 // Start the hub
-hub.start().catch(error => {
+hub.start().then(() => {
+    // Start memory monitoring after successful start
+    startMemoryMonitoring();
+}).catch(error => {
     console.error('❌ Failed to start:', error.message);
     process.exit(1);
 });

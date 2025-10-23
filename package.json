@@ -1,6 +1,6 @@
 {
   "name": "pigeonhub",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "PigeonHub - Decentralized mesh network with WebSocket signaling and PeerPigeon bootstrap nodes",
   "type": "module",
   "main": "index.js",
@@ -11,8 +11,9 @@
     "./utils/*": "./utils/*"
   },
   "scripts": {
-    "start": "node index.js",
-    "start:dev": "PORT=3001 node index.js",
+    "start": "node --expose-gc index.js",
+    "start:dev": "PORT=3001 node --expose-gc index.js",
+    "start:no-gc": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
