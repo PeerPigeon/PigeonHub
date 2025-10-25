@@ -33,6 +33,39 @@ A lightweight WebAssembly implementation of the PigeonHub server designed to run
 └─────────────────────────────────────┘
 ```
 
+## 🚀 Quick Start (Automated Setup)
+
+**NEW!** We provide automated setup scripts for all major operating systems:
+
+### macOS
+```bash
+cd embedded/esp32/scripts
+./setup-macos.sh
+```
+
+### Linux
+```bash
+cd embedded/esp32/scripts
+./setup-linux.sh
+```
+
+### Windows
+```powershell
+cd embedded\esp32\scripts
+powershell -ExecutionPolicy Bypass -File setup-windows.ps1
+```
+
+The scripts will automatically:
+- ✅ Install all required dependencies (Python, PlatformIO, WASI-SDK, etc.)
+- ✅ Build the WASM module
+- ✅ Set up your development environment
+- ✅ Configure USB permissions (Linux)
+- ✅ Install USB drivers (Windows)
+
+See [scripts/README.md](scripts/README.md) for detailed documentation.
+
+---
+
 ## Requirements
 
 ### Build Requirements
@@ -46,7 +79,7 @@ A lightweight WebAssembly implementation of the PigeonHub server designed to run
 - **ESP32** board with WiFi (ESP32, ESP32-S2, ESP32-C3, etc.)
 - Minimum 4MB Flash, 320KB RAM recommended
 
-## Installation
+## Manual Installation
 
 ### 1. Install WASI-SDK
 
