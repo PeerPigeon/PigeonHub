@@ -1,6 +1,6 @@
 {
   "name": "pigeonhub",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "PigeonHub - Decentralized mesh network with WebSocket signaling and PeerPigeon bootstrap nodes",
   "type": "module",
   "main": "index.js",
